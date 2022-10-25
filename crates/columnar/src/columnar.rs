@@ -1,7 +1,7 @@
-mod data;
-use data::ColumnData;
-mod example;
-pub mod encode;
+use std::borrow::Cow;
+
+use crate::data::ColumnData;
+
 
 pub enum Strategy{
     Plain,
@@ -15,8 +15,8 @@ pub enum Strategy{
 }
 
 pub struct ColumnAttr {
-    index: usize,
-    strategies: Vec<Strategy>
+    pub index: usize,
+    pub strategies: Vec<Strategy>
 }
 
 pub trait Row{}
@@ -26,8 +26,8 @@ pub trait ColumnTrait {
 }
 
 pub struct Column{
-    data: Vec<ColumnData>,
-    attr: ColumnAttr,
+    pub data: Vec<ColumnData>,
+    pub attr: ColumnAttr,
 }
 
 
@@ -44,5 +44,3 @@ pub trait Columns{
 pub trait ColumnOriented<T: Columns> {
     fn get_column_data(&self) -> T;
 }
-
-

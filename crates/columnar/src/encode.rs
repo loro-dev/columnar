@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use super::{Columns, Column, ColumnOriented};
+use crate::columnar::{ColumnOriented, Columns, Column};
 
 pub trait Encodable {
     fn encode<E>(&self, encoder: &mut E) -> Result<E::Ok, E::Error> where E: Encoder;
@@ -39,8 +39,17 @@ pub trait StructEncoder {
 pub trait ColumnEncoder {
     type Ok;
     type Error: Error;
+    type RleEncoder: RleEncoder;
+
+    fn encode_rle(&mut self, value: &Column) -> Result<Self::RleEncoder, Self::Error>;
+    fn end(self) -> Result<Self::Ok, Self::Error>;
+    
+}
+
+pub trait RleEncoder{ 
+    type Ok;
+    type Error: Error;
 
     fn encode_column(&mut self, value: &Column) -> Result<(), Self::Error>;
     fn end(self) -> Result<Self::Ok, Self::Error>;
-    
 }
