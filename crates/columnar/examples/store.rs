@@ -1,9 +1,14 @@
-use std::borrow::Cow;
-
-use columnar_serde::{Row, ColumnAttr, ColumnData, Strategy, ColumnOriented};
-
 extern crate columnar_serde;
+extern crate serde;
+extern crate serde_with;
 
+use std::{borrow::Cow, marker::PhantomData};
+
+use columnar_serde::{Row, ColumnAttr, ColumnData, Strategy, ColumnOriented, Columns};
+use serde::{Serialize, Deserialize};
+use serde_with::serde_as;
+
+#[derive(Debug)]
 struct Data{
     // #[columnar(strategy = "RLE")]
     id: u64,
@@ -21,9 +26,12 @@ impl Row for Data{
     }
 }
 
+#[serde_as]
+#[derive(Debug, Serialize)]
 struct Store{
+    #[serde_as(as = "Columns")]
     pub a: Vec<Data>,
-    pub b: String
+    pub b: String,
 }
 
 fn main(){

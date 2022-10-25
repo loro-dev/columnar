@@ -1,7 +1,9 @@
 mod data;
+use std::ops::Deref;
+
 pub use data::ColumnData;
 mod encoder;
-pub use encoder::{ColumnarEncoder, Strategy};
+pub use encoder::{Strategy, RleEncoder, ColumnarEncoder};
 mod attr;
 pub use attr::ColumnAttr;
 
@@ -50,6 +52,13 @@ pub struct Column<'c>(Vec<ColumnData<'c>>, ColumnAttr);
 
 #[derive(Debug)]
 pub struct Columns<'c>(Vec<Column<'c>>);
+
+impl<'c> Deref for Columns<'c> {
+    type Target = Vec<Column<'c>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<'c> Columns<'c> {
     pub fn from_rows(data: Vec<Vec<ColumnData<'c>>>, attrs: Vec<ColumnAttr>) -> Self {

@@ -1,5 +1,9 @@
-extern crate serde;
+use serde::Serializer;
 
-pub struct Columnar{
+// pub struct ColumnarSerializer {
+    
+// }
 
-}
+// impl Serializer for ColumnarSerializer {
+    
+// }
