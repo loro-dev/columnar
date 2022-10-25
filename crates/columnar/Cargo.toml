@@ -3,8 +3,9 @@ name = "columnar"
 version = "0.1.0"
 edition = "2021"
 
-
 [dependencies]
-smallvec = "1.8.0"
-rand = "0.8.5"
+serde = { version = "1.0.147", features = ["derive"] }
+columnar_serde = { path = "../columnar_serde" }
 
+[[example]]
+name = "store"
