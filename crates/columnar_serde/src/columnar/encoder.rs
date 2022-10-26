@@ -8,7 +8,7 @@ pub trait ColumnEncoder{
     fn encode_rle(&self, strategy: &Strategy) -> Result<Self::RleEncoder, Self::Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Strategy{
     Plain,
     RLE

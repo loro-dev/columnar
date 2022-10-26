@@ -22,7 +22,8 @@ impl Serialize for Columns<'_> {
         S: Serializer,
     {
         let mut columnar = ColumnarEncoder::new();
-        let bytes = columnar.encode(&self).unwrap();
+        columnar.encode(&self).unwrap();
+        let bytes = columnar.finish();
         serializer.serialize_bytes(bytes.as_slice())
     }
 }

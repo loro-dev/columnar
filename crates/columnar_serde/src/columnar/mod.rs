@@ -16,7 +16,7 @@ pub trait Row{
     fn get_columns_data<'a: 'c, 'c>(&'a self) -> Vec<ColumnData<'c>>;
 }
 
-fn transpose2<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>> {
+fn transpose<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>> {
     assert!(!v.is_empty());
     let len = v[0].len();
     let mut iters: Vec<_> = v.into_iter().map(|n| n.into_iter()).collect();
@@ -41,14 +41,14 @@ where
             .iter()
             .map(|row| row.get_columns_data())
             .collect::<Vec<_>>();
-        let columns_data = transpose2(data);
+        let columns_data = transpose(data);
         Columns::from_rows(columns_data, attrs)
     }
 }
 
 // 一个Row以列式排列的数据结构
 #[derive(Debug)]
-pub struct Column<'c>(Vec<ColumnData<'c>>, ColumnAttr);
+pub struct Column<'c>(pub(crate) Vec<ColumnData<'c>>, pub(crate) ColumnAttr);
 
 #[derive(Debug)]
 pub struct Columns<'c>(Vec<Column<'c>>);
