@@ -4,4 +4,3 @@ pub use columnar::{Column, ColumnAttr, ColumnData, ColumnOriented, Columns, Row,
 mod columnar_impl;
 mod err;
 pub use err::ColumnarError;
-mod serde;

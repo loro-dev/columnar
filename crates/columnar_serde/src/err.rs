@@ -1,9 +1,12 @@
-use std::{fmt::{Display, Formatter}, error::Error};
+use std::{fmt::{Display, Formatter, Debug}, error::Error};
+
+use serde::ser;
 
 
 #[derive(Debug)]
 pub enum ColumnarError{
-    AlreadyEnd
+    AlreadyEnd,
+    Error(String)
 }
 
 impl Display for ColumnarError{
@@ -14,3 +17,9 @@ impl Display for ColumnarError{
 }
 
 impl Error for ColumnarError{}
+
+impl ser::Error for ColumnarError{
+    fn custom<T: Display>(msg: T) -> Self {
+        Self::Error(msg.to_string())
+    }
+}

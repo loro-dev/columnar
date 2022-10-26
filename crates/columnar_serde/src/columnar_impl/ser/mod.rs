@@ -1,7 +1,7 @@
-use serde::{ser::SerializeSeq, Serialize, Serializer};
+use serde::{Serialize, Serializer};
 use serde_with::SerializeAs;
 
-use crate::{columnar::ColumnarEncoder, columnar_impl::Columnar, Columns, Row};
+use crate::{Columns, Row, columnar_impl::ColumnarEncoder};
 
 impl<T> SerializeAs<Vec<T>> for Columns<'_>
 where
@@ -21,7 +21,7 @@ impl Serialize for Columns<'_> {
     where
         S: Serializer,
     {
-        let mut columnar = Columnar::new();
+        let mut columnar = ColumnarEncoder::new();
         let bytes = columnar.encode(&self).unwrap();
         serializer.serialize_bytes(bytes.as_slice())
     }

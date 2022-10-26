@@ -1,10 +1,10 @@
 use crate::{ColumnData, Columns, Column};
 
 
-pub trait ColumnarEncoder{
+pub trait ColumnEncoder{
     type OK;
     type Error;
-    type RleEncoder;
+    type RleEncoder: Rle;
     fn encode_rle(&self, strategy: &Strategy) -> Result<Self::RleEncoder, Self::Error>;
 }
 
@@ -14,8 +14,8 @@ pub enum Strategy{
     RLE
 }
 
-pub trait RleEncoder<T>{
+pub trait Rle{
     type OK;
     type Error;
-    fn encode<'c>(&self, data: &Vec<T>) -> Result<Self::OK, Self::Error>;
+    fn encode<T>(&self, data: &Vec<T>) -> Result<Self::OK, Self::Error>;
 }

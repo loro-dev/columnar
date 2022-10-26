@@ -18,7 +18,7 @@ struct Data{
 
 impl Row for Data{
     fn get_attrs() -> Vec<ColumnAttr> {
-        vec![ColumnAttr{index: 0, strategy: Strategy::RLE}, ColumnAttr{index: 1, strategy: Strategy::Plain}, ColumnAttr{index: 2, strategy: Strategy::Plain}]
+        vec![ColumnAttr{index: 1, strategy: Strategy::RLE}, ColumnAttr{index: 2, strategy: Strategy::Plain}, ColumnAttr{index: 3, strategy: Strategy::Plain}]
     }
 
     fn get_columns_data<'a: 'c, 'c>(&'a self) -> Vec<ColumnData<'c>>{

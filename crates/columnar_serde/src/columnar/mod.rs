@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 pub use data::ColumnData;
 mod encoder;
-pub use encoder::{Strategy, RleEncoder, ColumnarEncoder};
+pub use encoder::{Strategy, Rle, ColumnEncoder};
 mod attr;
 pub use attr::ColumnAttr;
 
