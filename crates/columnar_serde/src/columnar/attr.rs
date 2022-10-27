@@ -1,4 +1,9 @@
-use crate::Strategy;
+#[derive(Debug, Clone)]
+pub enum Strategy {
+    Plain,
+    BoolRle,
+    Rle,
+}
 
 #[derive(Debug)]
 pub struct ColumnAttr{

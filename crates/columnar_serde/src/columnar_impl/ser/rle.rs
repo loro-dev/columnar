@@ -20,7 +20,7 @@ where
     pub fn append<BT: Borrow<T::Value>>(&mut self, value: BT) {
         self.encoder.append(value)
     }
-    pub fn finish(mut self) -> Vec<T::Output> {
+    pub fn finish(self) -> Vec<T::Output> {
         self.encoder.finish()
     }
 }
@@ -38,8 +38,8 @@ pub struct BoolRleEncoder {
     count: usize,
 }
 
-impl BoolRleEncoder {
-    fn new() -> Self {
+impl BoolRleEncoder{
+    pub(crate) fn new() -> Self {
         Self {
             buf: Vec::new(),
             last: false,
@@ -85,18 +85,10 @@ where
 
     fn append<BT: Borrow<Self::Value>>(&mut self, value: BT) {
         self.append_value(value);
-        // match value.borrow() {
-        //     Some(t) =>
-        //     None => self.append_null(),
-        // }
     }
 
     fn finish(mut self) -> Vec<Self::Output> {
         match self.take_state() {
-            RleState::InitialNullRun(_size) => {}
-            RleState::NullRun(size) => {
-                self.flush_null_run(size);
-            }
             RleState::LoneVal(value) => self.flush_lit_run(vec![value]),
             RleState::Run(value, len) => self.flush_run(&value, len),
             RleState::LiteralRun(last, mut run) => {
@@ -149,38 +141,6 @@ where
                     RleState::LiteralRun(value.borrow().clone(), run)
                 }
             }
-            RleState::NullRun(size) | RleState::InitialNullRun(size) => {
-                self.flush_null_run(size);
-                RleState::LoneVal(value.borrow().clone())
-            }
-        }
-    }
-
-    pub fn append_null(&mut self) {
-        self.state = match self.take_state() {
-            RleState::Empty => RleState::InitialNullRun(1),
-            RleState::InitialNullRun(size) => RleState::InitialNullRun(size + 1),
-            RleState::NullRun(size) => RleState::NullRun(size + 1),
-            RleState::LoneVal(other) => {
-                self.flush_lit_run(vec![other]);
-                RleState::NullRun(1)
-            }
-            RleState::Run(other, len) => {
-                self.flush_run(&other, len);
-                RleState::NullRun(1)
-            }
-            RleState::LiteralRun(last, mut run) => {
-                run.push(last);
-                self.flush_lit_run(run);
-                RleState::NullRun(1)
-            }
-        }
-    }
-
-    pub fn append<BT: Borrow<T>>(&mut self, value: Option<BT>) {
-        match value {
-            Some(t) => self.append_value(t),
-            None => self.append_null(),
         }
     }
 
@@ -193,12 +153,6 @@ where
     fn flush_run(&mut self, val: &T, len: usize) {
         self.encode_length(len as isize);
         self.encode_content(val.clone());
-    }
-
-    fn flush_null_run(&mut self, len: usize) {
-        // TODO: check if this is correct
-        self.encode_length(0);
-        self.encode_length(len as isize);
     }
 
     fn flush_lit_run(&mut self, run: Vec<T>) {
@@ -219,17 +173,11 @@ where
 
 enum RleState<T> {
     Empty,
-    // Note that this is different to a `NullRun` because if every element of a column is null
-    // (i.e. the state when we call `finish` is `InitialNullRun`) then we don't output anything at
-    // all for the column
-    InitialNullRun(usize),
-    NullRun(usize),
     LiteralRun(T, Vec<T>),
     LoneVal(T),
     Run(T, usize),
 }
 
-// TODO: consider using ColumnData?
 #[derive(Debug, PartialEq)]
 pub enum RleData<T> {
     Content(T),
@@ -246,7 +194,7 @@ impl<'c> From<RleData<ColumnData<'c>>> for ColumnData<'c> {
 }
 
 mod test {
-    use crate::columnar_impl::rle::{AnyRleEncoder, BoolRleEncoder, RleData, RleEncoder};
+    use crate::columnar_impl::ser::rle::{AnyRleEncoder, BoolRleEncoder, RleData, RleEncoder};
 
     #[test]
     fn test_rle() {

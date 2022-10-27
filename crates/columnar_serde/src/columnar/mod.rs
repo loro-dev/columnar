@@ -2,10 +2,14 @@ mod data;
 use std::ops::Deref;
 
 pub use data::ColumnData;
-mod encoder;
-pub use encoder::{ColumnEncoder, Rle, Strategy};
 mod attr;
-pub use attr::ColumnAttr;
+pub use attr::{ColumnAttr, Strategy};
+use serde::{Serializer, Serialize};
+use serde_with::SerializeAs;
+
+use crate::columnar_impl::ser::ColumnarEncoder;
+
+
 
 pub trait ColumnOriented {
     fn get_columns<'c>(&'c self) -> Columns<'c>;
@@ -85,5 +89,30 @@ where
 {
     fn from(obj: &'c T) -> Self {
         obj.get_columns()
+    }
+}
+
+impl<T> SerializeAs<Vec<T>> for Columns<'_>
+where
+    T: Row,
+{
+    fn serialize_as<S>(source: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let columns = Columns::from(source);
+        columns.serialize(serializer)
+    }
+}
+
+impl Serialize for Columns<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut columnar = ColumnarEncoder::new();
+        columnar.encode(&self).unwrap();
+        let bytes = columnar.finish();
+        serializer.serialize_bytes(bytes.as_slice())
     }
 }

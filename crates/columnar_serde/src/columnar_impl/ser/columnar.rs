@@ -1,5 +1,5 @@
-use serde::{Serialize, Serializer, ser::Impossible};
-use crate::{ColumnarError, columnar_impl::{low_bits_of_u64, CONTINUATION_BIT}};
+use serde::{Serialize, Serializer, ser::{Impossible, SerializeSeq, SerializeStruct}};
+use crate::{ColumnarError, columnar_impl::ser::{low_bits_of_u64, CONTINUATION_BIT}};
 
 #[derive(Debug)]
 pub struct Columnar{
@@ -14,6 +14,10 @@ impl Columnar {
     pub(crate) fn buf(&self) -> &Vec<u8>{
         &self.buf
     }
+
+    pub(crate) fn get_buf(self) -> Vec<u8>{
+        self.buf
+    }
 }
 
 impl<'a> Serializer for &'a mut Columnar{
@@ -21,7 +25,7 @@ impl<'a> Serializer for &'a mut Columnar{
 
     type Error = ColumnarError;
 
-    type SerializeSeq = Impossible<Self::Ok, Self::Error>;
+    type SerializeSeq = ColumnarSubSerializer<'a>;
 
     type SerializeTuple = Impossible<Self::Ok, Self::Error>;
 
@@ -31,24 +35,25 @@ impl<'a> Serializer for &'a mut Columnar{
 
     type SerializeMap = Impossible<Self::Ok, Self::Error>;
 
-    type SerializeStruct = Impossible<Self::Ok, Self::Error>;
+    type SerializeStruct = ColumnarSubSerializer<'a>;
 
     type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.buf.push(v as u8);
+        Ok(())
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.serialize_i64(v as i64)
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.serialize_i64(v as i64)
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.serialize_i64(v as i64)
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
@@ -82,11 +87,11 @@ impl<'a> Serializer for &'a mut Columnar{
     }
 
     fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.serialize_u64(v as u64)
     }
 
     fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.serialize_u64(v as u64)
     }
 
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
@@ -123,11 +128,13 @@ impl<'a> Serializer for &'a mut Columnar{
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.buf.extend_from_slice(v.as_bytes());
+        Ok(())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.buf.extend_from_slice(v);
+        Ok(())
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
@@ -180,7 +187,10 @@ impl<'a> Serializer for &'a mut Columnar{
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        todo!()
+        if let Some(l) = len{
+            self.serialize_u64(l as u64)?;
+        }
+        Ok(ColumnarSubSerializer::new(self))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
@@ -214,7 +224,8 @@ impl<'a> Serializer for &'a mut Columnar{
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        todo!()
+        self.serialize_u64(len as u64)?;
+        Ok(ColumnarSubSerializer::new(self))
     }
 
     fn serialize_struct_variant(
@@ -225,5 +236,130 @@ impl<'a> Serializer for &'a mut Columnar{
         len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         todo!()
+    }
+}
+
+
+pub struct ColumnarSubSerializer<'a>{
+    ser: &'a mut Columnar
+}
+
+impl<'a> ColumnarSubSerializer<'a> {
+    pub(crate) fn new(ser: &'a mut Columnar) -> Self{
+        Self{ser}
+    }
+}
+
+impl<'a> SerializeSeq for ColumnarSubSerializer<'a>{
+    type Ok = ();
+    type Error = ColumnarError;
+
+    fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
+        value.serialize(&mut *self.ser)
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(())
+    }
+}
+
+impl<'a> SerializeStruct for ColumnarSubSerializer<'a> {
+    type Ok=();
+
+    type Error=ColumnarError;
+
+    fn serialize_field<T: ?Sized>(
+        &mut self,
+        _: &'static str,
+        value: &T,
+    ) -> Result<(), Self::Error>
+    where
+        T: Serialize {
+        // TODO: key is unnecessary?
+        value.serialize(&mut *self.ser)
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(())
+    }
+}
+
+mod test{
+    use std::borrow::Cow;
+
+    use serde::Serialize;
+    use serde_with::serde_as;
+
+    use crate::{Row, ColumnAttr, Strategy, ColumnData, Columns, columnar_impl::ser::columnar::Columnar};
+
+
+    #[test]
+    fn test_columnar(){
+        #[derive(Debug)]
+        struct Data {
+            // #[columnar(strategy = "RLE")]
+            id: u64,
+            name: String,
+            age: u32,
+        }
+
+        impl Row for Data {
+            fn get_attrs() -> Vec<ColumnAttr> {
+                vec![
+                    ColumnAttr {
+                        index: 1,
+                        strategies: vec![Strategy::Rle, Strategy::Plain],
+                    },
+                    ColumnAttr {
+                        index: 2,
+                        strategies: vec![Strategy::Plain],
+                    },
+                    ColumnAttr {
+                        index: 3,
+                        strategies: vec![Strategy::Plain],
+                    },
+                ]
+            }
+
+            fn get_columns_data<'a: 'c, 'c>(&'a self) -> Vec<ColumnData<'c>> {
+                vec![
+                    ColumnData::U64(self.id),
+                    ColumnData::String(Cow::Borrowed(&self.name)),
+                    ColumnData::U64(self.age as u64),
+                ]
+            }
+        }
+
+        #[serde_as]
+        #[derive(Debug, Serialize)]
+        struct Store {
+            #[serde_as(as = "Columns")]
+            pub a: Vec<Data>,
+            pub b: String,
+        }
+
+        let store = Store {
+            a: vec![
+                Data {
+                    id: 2,
+                    name: "a".to_string(),
+                    age: 1,
+                },
+                Data {
+                    id: 2,
+                    name: "b".to_string(),
+                    age: 2,
+                },
+                Data {
+                    id: 2,
+                    name: "c".to_string(),
+                    age: 3,
+                },
+            ],
+            b: "b".to_string(),
+        };
+        let mut columnar = Columnar::new();
+        store.serialize(&mut columnar);
+        println!("{:?}", columnar.buf());
     }
 }

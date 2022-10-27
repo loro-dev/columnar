@@ -1,11 +1,10 @@
-use serde::{Serialize, Serializer};
+use serde::{ Serializer, ser::SerializeSeq};
 
-use crate::{columnar_impl::rle::RleEncoder, Column, ColumnData, ColumnarError, Columns, Strategy};
+use crate::{columnar_impl::ser::rle::RleEncoder, Column, ColumnData, ColumnarError, Columns, Strategy};
 
-use super::{columnar::Columnar, rle::AnyRleEncoder};
+use super::{columnar::Columnar, rle::{AnyRleEncoder, BoolRleEncoder}};
 
 pub struct ColumnarEncoder {
-    buf: Vec<u8>,
     // ColumnEncoder 中的 serde
     ser: Columnar,
 }
@@ -14,7 +13,6 @@ impl<'c> ColumnarEncoder {
     pub fn new() -> Self {
         Self {
             ser: Columnar::new(),
-            buf: Vec::new(),
         }
     }
 
@@ -28,16 +26,21 @@ impl<'c> ColumnarEncoder {
     fn encode_column(&mut self, column: &Column<'c>) -> Result<(), ColumnarError> {
         let Column(data, attr) = column;
         let mut strategies: Vec<&Strategy> = attr.strategies.iter().rev().collect();
+        let mut owned: Vec<ColumnData>;
+        let mut tmp_data = data;
         while let Some(strategy) = strategies.pop() {
             match strategy {
                 Strategy::Plain => {
-                    self.encode_plain(data)?;
+                    self.encode_plain(tmp_data)?;
+                    break;
                 }
                 Strategy::Rle => {
-                    self.encode_rle(data)?;
+                    owned = self.encode_rle(tmp_data)?;
+                    tmp_data = &owned;
                 }
                 Strategy::BoolRle => {
-                    self.encode_bool_rle(data)?;
+                    owned = self.encode_rle(tmp_data)?;
+                    tmp_data = &owned;
                 }
             }
         }
@@ -45,7 +48,7 @@ impl<'c> ColumnarEncoder {
     }
 
     fn encode_rle(
-        &mut self,
+        &self,
         column_data: &Vec<ColumnData<'c>>,
     ) -> Result<Vec<ColumnData<'c>>, ColumnarError> {
         let mut rle_encoder = RleEncoder::new(AnyRleEncoder::<ColumnData>::new());
@@ -57,23 +60,30 @@ impl<'c> ColumnarEncoder {
     }
 
     fn encode_bool_rle(
-        &mut self,
+        &self,
         column_data: &Vec<ColumnData<'c>>,
     ) -> Result<Vec<ColumnData>, ColumnarError> {
-        todo!()
+        let mut rle_encoder = RleEncoder::new(BoolRleEncoder::new());
+        for data in column_data.into_iter() {
+            if let ColumnData::Bool(b) = data {
+                rle_encoder.append(b);
+            } else {
+                return Err(ColumnarError::InvalidDataType);
+            }
+        }
+        let rle_encoded = rle_encoder.finish().into_iter().map(|r| ColumnData::U64(r as u64)).collect();
+        Ok(rle_encoded)
     }
 
     fn encode_plain(&mut self, column_data: &Vec<ColumnData<'c>>) -> Result<(), ColumnarError> {
-        // let seq = self.ser.serialize_seq(Some(column_data.len()))?;
-        // for column_data in column_data.iter(){
-        //     seq.serialize_element(column_data)?;
-        // }
+        let mut seq = self.ser.serialize_seq(Some(column_data.len()))?;
+        for column_data in column_data.iter(){
+            seq.serialize_element(column_data)?;
+        }
         Ok(())
     }
 
     pub(crate) fn finish(self) -> Vec<u8> {
-        todo!()
-        // TODO:
-        // self.ser.buf()
+        self.ser.get_buf()
     }
 }

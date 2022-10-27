@@ -6,6 +6,7 @@ use serde::ser;
 #[derive(Debug)]
 pub enum ColumnarError{
     AlreadyEnd,
+    InvalidDataType,
     Error(String)
 }
 
