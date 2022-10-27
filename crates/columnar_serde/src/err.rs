@@ -7,6 +7,7 @@ use serde::ser;
 pub enum ColumnarError{
     AlreadyEnd,
     InvalidDataType,
+    LengthUnknown,
     Error(String)
 }
 
