@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 pub use data::ColumnData;
 mod encoder;
-pub use encoder::{Strategy, Rle, ColumnEncoder};
+pub use encoder::{ColumnEncoder, Rle, Strategy};
 mod attr;
 pub use attr::ColumnAttr;
 
@@ -11,7 +11,7 @@ pub trait ColumnOriented {
     fn get_columns<'c>(&'c self) -> Columns<'c>;
 }
 
-pub trait Row{
+pub trait Row {
     fn get_attrs() -> Vec<ColumnAttr>;
     fn get_columns_data<'a: 'c, 'c>(&'a self) -> Vec<ColumnData<'c>>;
 }
@@ -64,7 +64,8 @@ impl<'c> Columns<'c> {
     pub fn from_rows(data: Vec<Vec<ColumnData<'c>>>, attrs: Vec<ColumnAttr>) -> Self {
         assert!(
             data.len() == attrs.len(),
-            "{}", format!(
+            "{}",
+            format!(
                 "data({:?}) and attrs({:?}) must have the same length",
                 data.len(),
                 attrs.len()

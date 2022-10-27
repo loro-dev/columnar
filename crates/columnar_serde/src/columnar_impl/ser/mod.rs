@@ -1,7 +1,7 @@
 use serde::{Serialize, Serializer};
 use serde_with::SerializeAs;
 
-use crate::{Columns, Row, columnar_impl::ColumnarEncoder};
+use crate::{columnar_impl::ColumnarEncoder, Columns, Row};
 
 impl<T> SerializeAs<Vec<T>> for Columns<'_>
 where

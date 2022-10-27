@@ -1,7 +1,6 @@
-use crate::{ColumnData, Columns, Column};
+use crate::{Column, ColumnData, Columns};
 
-
-pub trait ColumnEncoder{
+pub trait ColumnEncoder {
     type OK;
     type Error;
     type RleEncoder: Rle;
@@ -9,12 +8,13 @@ pub trait ColumnEncoder{
 }
 
 #[derive(Debug, Clone)]
-pub enum Strategy{
+pub enum Strategy {
     Plain,
-    RLE
+    BoolRle,
+    Rle,
 }
 
-pub trait Rle{
+pub trait Rle {
     type OK;
     type Error;
     fn encode<T>(&self, data: &Vec<T>) -> Result<Self::OK, Self::Error>;
