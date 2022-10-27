@@ -2,11 +2,11 @@ use serde::{Serialize, Serializer, ser::{Impossible, SerializeSeq, SerializeStru
 use crate::{ColumnarError, columnar_impl::ser::{low_bits_of_u64, CONTINUATION_BIT}};
 
 #[derive(Debug)]
-pub struct Columnar{
+pub struct ColumnarSerializer{
     buf: Vec<u8>
 }
 
-impl Columnar {
+impl ColumnarSerializer {
     pub fn new() -> Self{
         Self{buf: Vec::new()}
     }
@@ -15,17 +15,17 @@ impl Columnar {
         &self.buf
     }
 
-    pub(crate) fn get_buf(self) -> Vec<u8>{
+    pub(crate) fn to_bytes(self) -> Vec<u8>{
         self.buf
     }
 }
 
-impl<'a> Serializer for &'a mut Columnar{
+impl<'a> Serializer for &'a mut ColumnarSerializer{
     type Ok= ();
 
     type Error = ColumnarError;
 
-    type SerializeSeq = ColumnarSubSerializer<'a>;
+    type SerializeSeq = Self;
 
     type SerializeTuple = Impossible<Self::Ok, Self::Error>;
 
@@ -35,7 +35,7 @@ impl<'a> Serializer for &'a mut Columnar{
 
     type SerializeMap = Impossible<Self::Ok, Self::Error>;
 
-    type SerializeStruct = ColumnarSubSerializer<'a>;
+    type SerializeStruct = Self;
 
     type SerializeStructVariant = Impossible<Self::Ok, Self::Error>;
 
@@ -190,7 +190,7 @@ impl<'a> Serializer for &'a mut Columnar{
         if let Some(l) = len{
             self.serialize_u64(l as u64)?;
         }
-        Ok(ColumnarSubSerializer::new(self))
+        Ok(self)
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
@@ -225,7 +225,7 @@ impl<'a> Serializer for &'a mut Columnar{
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
         self.serialize_u64(len as u64)?;
-        Ok(ColumnarSubSerializer::new(self))
+        Ok(self)
     }
 
     fn serialize_struct_variant(
@@ -240,22 +240,12 @@ impl<'a> Serializer for &'a mut Columnar{
 }
 
 
-pub struct ColumnarSubSerializer<'a>{
-    ser: &'a mut Columnar
-}
-
-impl<'a> ColumnarSubSerializer<'a> {
-    pub(crate) fn new(ser: &'a mut Columnar) -> Self{
-        Self{ser}
-    }
-}
-
-impl<'a> SerializeSeq for ColumnarSubSerializer<'a>{
+impl SerializeSeq for & mut ColumnarSerializer{
     type Ok = ();
     type Error = ColumnarError;
 
     fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
-        value.serialize(&mut *self.ser)
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
@@ -263,7 +253,7 @@ impl<'a> SerializeSeq for ColumnarSubSerializer<'a>{
     }
 }
 
-impl<'a> SerializeStruct for ColumnarSubSerializer<'a> {
+impl SerializeStruct for &mut ColumnarSerializer {
     type Ok=();
 
     type Error=ColumnarError;
@@ -276,7 +266,7 @@ impl<'a> SerializeStruct for ColumnarSubSerializer<'a> {
     where
         T: Serialize {
         // TODO: key is unnecessary?
-        value.serialize(&mut *self.ser)
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
@@ -290,7 +280,7 @@ mod test{
     use serde::Serialize;
     use serde_with::serde_as;
 
-    use crate::{Row, ColumnAttr, Strategy, ColumnData, Columns, columnar_impl::ser::columnar::Columnar};
+    use crate::{Row, ColumnAttr, Strategy, ColumnData, Columns, columnar_impl::ser::columnar::ColumnarSerializer};
 
 
     #[test]
@@ -358,7 +348,7 @@ mod test{
             ],
             b: "b".to_string(),
         };
-        let mut columnar = Columnar::new();
+        let mut columnar = ColumnarSerializer::new();
         store.serialize(&mut columnar);
         println!("{:?}", columnar.buf());
     }

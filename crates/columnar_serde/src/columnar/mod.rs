@@ -7,7 +7,7 @@ pub use attr::{ColumnAttr, Strategy};
 use serde::{Serializer, Serialize};
 use serde_with::SerializeAs;
 
-use crate::columnar_impl::ser::ColumnarEncoder;
+use crate::columnar_impl::ser::ColumnEncoder;
 
 
 
@@ -110,7 +110,7 @@ impl Serialize for Columns<'_> {
     where
         S: Serializer,
     {
-        let mut columnar = ColumnarEncoder::new();
+        let mut columnar = ColumnEncoder::new();
         columnar.encode(&self).unwrap();
         let bytes = columnar.finish();
         serializer.serialize_bytes(bytes.as_slice())

@@ -2,17 +2,17 @@ use serde::{ Serializer, ser::SerializeSeq};
 
 use crate::{columnar_impl::ser::rle::RleEncoder, Column, ColumnData, ColumnarError, Columns, Strategy};
 
-use super::{columnar::Columnar, rle::{AnyRleEncoder, BoolRleEncoder}};
+use super::{columnar::ColumnarSerializer, rle::{AnyRleEncoder, BoolRleEncoder}};
 
-pub struct ColumnarEncoder {
+pub struct ColumnEncoder {
     // ColumnEncoder 中的 serde
-    ser: Columnar,
+    ser: ColumnarSerializer,
 }
 
-impl<'c> ColumnarEncoder {
+impl<'c> ColumnEncoder {
     pub fn new() -> Self {
         Self {
-            ser: Columnar::new(),
+            ser: ColumnarSerializer::new(),
         }
     }
 
@@ -84,6 +84,6 @@ impl<'c> ColumnarEncoder {
     }
 
     pub(crate) fn finish(self) -> Vec<u8> {
-        self.ser.get_buf()
+        self.ser.to_bytes()
     }
 }

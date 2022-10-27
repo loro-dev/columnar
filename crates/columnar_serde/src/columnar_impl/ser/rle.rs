@@ -1,6 +1,6 @@
 /// Reference automerge implementation:
 /// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
-// TODO: add rle trait, to impl num and bool
+
 use std::borrow::Borrow;
 
 use crate::ColumnData;
