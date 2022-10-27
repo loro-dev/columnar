@@ -1,6 +1,6 @@
 use std::{fmt::{Display, Formatter, Debug}, error::Error};
 
-use serde::ser;
+use serde::{ser, de};
 
 
 #[derive(Debug)]
@@ -8,7 +8,7 @@ pub enum ColumnarError{
     AlreadyEnd,
     InvalidDataType,
     LengthUnknown,
-    Error(String)
+    SerdeError(String)
 }
 
 impl Display for ColumnarError{
@@ -22,6 +22,12 @@ impl Error for ColumnarError{}
 
 impl ser::Error for ColumnarError{
     fn custom<T: Display>(msg: T) -> Self {
-        Self::Error(msg.to_string())
+        Self::SerdeError(msg.to_string())
+    }
+}
+
+impl de::Error for ColumnarError {
+    fn custom<T: Display>(msg: T) -> Self {
+        Self::SerdeError(msg.to_string())
     }
 }
