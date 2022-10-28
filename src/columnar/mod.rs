@@ -1,15 +1,13 @@
 mod data;
 use std::ops::Deref;
 
-pub use data::ColumnData;
+pub use data::CellData;
 mod attr;
 pub use attr::{ColumnAttr, Strategy};
-use serde::{Serializer, Serialize};
+use serde::{Serialize, Serializer};
 use serde_with::SerializeAs;
 
 use crate::columnar_impl::ser::ColumnEncoder;
-
-
 
 pub trait ColumnOriented {
     fn get_columns<'c>(&'c self) -> Columns<'c>;
@@ -17,7 +15,7 @@ pub trait ColumnOriented {
 
 pub trait Row {
     fn get_attrs() -> Vec<ColumnAttr>;
-    fn get_columns_data<'a: 'c, 'c>(&'a self) -> Vec<ColumnData<'c>>;
+    fn get_cells_data<'a: 'c, 'c>(&'a self) -> Vec<CellData<'c>>;
 }
 
 fn transpose<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>> {
@@ -43,7 +41,7 @@ where
         // N*len(attrs)
         let data = self
             .iter()
-            .map(|row| row.get_columns_data())
+            .map(|row| row.get_cells_data())
             .collect::<Vec<_>>();
         let columns_data = transpose(data);
         Columns::from_rows(columns_data, attrs)
@@ -52,7 +50,7 @@ where
 
 // 一个Row以列式排列的数据结构
 #[derive(Debug)]
-pub struct Column<'c>(pub(crate) Vec<ColumnData<'c>>, pub(crate) ColumnAttr);
+pub struct Column<'c>(pub(crate) Vec<CellData<'c>>, pub(crate) ColumnAttr);
 
 #[derive(Debug)]
 pub struct Columns<'c>(Vec<Column<'c>>);
@@ -65,7 +63,7 @@ impl<'c> Deref for Columns<'c> {
 }
 
 impl<'c> Columns<'c> {
-    pub fn from_rows(data: Vec<Vec<ColumnData<'c>>>, attrs: Vec<ColumnAttr>) -> Self {
+    pub fn from_rows(data: Vec<Vec<CellData<'c>>>, attrs: Vec<ColumnAttr>) -> Self {
         assert!(
             data.len() == attrs.len(),
             "{}",

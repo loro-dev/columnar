@@ -399,7 +399,7 @@ mod test {
         use serde_with::serde_as;
 
         use crate::{
-            columnar_impl::ser::columnar::ColumnarSerializer, ColumnAttr, ColumnData, Columns, Row,
+            columnar_impl::ser::columnar::ColumnarSerializer, CellData, ColumnAttr, Columns, Row,
             Strategy,
         };
 
@@ -429,11 +429,11 @@ mod test {
                 ]
             }
 
-            fn get_columns_data<'a: 'c, 'c>(&'a self) -> Vec<ColumnData<'c>> {
+            fn get_cells_data<'a: 'c, 'c>(&'a self) -> Vec<CellData<'c>> {
                 vec![
-                    ColumnData::U64(self.id),
-                    ColumnData::String(Cow::Borrowed(&self.name)),
-                    ColumnData::U64(self.age as u64),
+                    CellData::U64(self.id),
+                    CellData::String(Cow::Borrowed(&self.name)),
+                    CellData::U64(self.age as u64),
                 ]
             }
         }

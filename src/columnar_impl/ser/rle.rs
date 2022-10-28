@@ -1,9 +1,8 @@
 /// Reference automerge implementation:
 /// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
-
 use std::borrow::Borrow;
 
-use crate::ColumnData;
+use crate::CellData;
 
 pub struct RleEncoder<T> {
     encoder: T,
@@ -38,7 +37,7 @@ pub struct BoolRleEncoder {
     count: usize,
 }
 
-impl BoolRleEncoder{
+impl BoolRleEncoder {
     pub(crate) fn new() -> Self {
         Self {
             buf: Vec::new(),
@@ -184,11 +183,11 @@ pub enum RleData<T> {
     Length(isize),
 }
 
-impl<'c> From<RleData<ColumnData<'c>>> for ColumnData<'c> {
-    fn from(value: RleData<ColumnData<'c>>) -> Self {
+impl<'c> From<RleData<CellData<'c>>> for CellData<'c> {
+    fn from(value: RleData<CellData<'c>>) -> Self {
         match value {
             RleData::Content(c) => c,
-            RleData::Length(l) => ColumnData::I64(l as i64),
+            RleData::Length(l) => CellData::I64(l as i64),
         }
     }
 }
