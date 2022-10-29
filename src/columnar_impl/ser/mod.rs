@@ -1,6 +1,5 @@
 mod column;
-mod columnar;
 pub use column::ColumnEncoder;
-mod leb128;
+mod columnar;
+pub use columnar::ColumnarSerializer;
 mod rle;
-mod zigzag;

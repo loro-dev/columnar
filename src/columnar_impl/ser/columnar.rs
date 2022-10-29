@@ -1,8 +1,10 @@
-use super::{
-    leb128::uleb64,
-    zigzag::{zig_zag_i16, zig_zag_i32, zig_zag_i64},
+use crate::{
+    columnar_impl::{
+        leb128::{varint_max, varint_u16, varint_u32, varint_u64, varint_usize},
+        zigzag::{zig_zag_i16, zig_zag_i32, zig_zag_i64},
+    },
+    ColumnarError,
 };
-use crate::ColumnarError;
 use serde::{
     ser::{
         SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
@@ -21,7 +23,7 @@ impl ColumnarSerializer {
         Self { buf: Vec::new() }
     }
 
-    pub(crate) fn to_bytes(self) -> Vec<u8> {
+    pub fn to_bytes(self) -> Vec<u8> {
         self.buf
     }
 }
@@ -75,23 +77,23 @@ impl<'a> Serializer for &'a mut ColumnarSerializer {
 
     #[inline]
     fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
-        self.serialize_u64(v as u64)
+        self.buf.push(v);
+        Ok(())
     }
 
     #[inline]
     fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
-        self.serialize_u64(v as u64)
+        self.uleb_u16(v)
     }
 
     #[inline]
     fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
-        self.serialize_u64(v as u64)
+        self.uleb_u32(v)
     }
 
     #[inline]
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
-        self.buf.extend_from_slice(uleb64(v).as_slice());
-        Ok(())
+        self.uleb_u64(v)
     }
 
     #[inline]
@@ -390,84 +392,36 @@ impl SerializeTuple for &mut ColumnarSerializer {
     }
 }
 
-mod test {
-    #[test]
-    fn test_columnar() {
-        use std::borrow::Cow;
+impl ColumnarSerializer {
+    #[inline]
+    fn uleb_usize(&mut self, value: usize) -> Result<(), ColumnarError> {
+        let mut buf = [0u8; varint_max::<usize>()];
+        let used_buf = varint_usize(value, &mut buf);
+        self.buf.extend_from_slice(used_buf);
+        Ok(())
+    }
 
-        use serde::Serialize;
-        use serde_with::serde_as;
+    #[inline]
+    fn uleb_u16(&mut self, value: u16) -> Result<(), ColumnarError> {
+        let mut buf = [0u8; varint_max::<u16>()];
+        let used_buf = varint_u16(value, &mut buf);
+        self.buf.extend_from_slice(used_buf);
+        Ok(())
+    }
 
-        use crate::{
-            columnar_impl::ser::columnar::ColumnarSerializer, CellData, ColumnAttr, Columns, Row,
-            Strategy,
-        };
+    #[inline]
+    fn uleb_u32(&mut self, value: u32) -> Result<(), ColumnarError> {
+        let mut buf = [0u8; varint_max::<u32>()];
+        let used_buf = varint_u32(value, &mut buf);
+        self.buf.extend_from_slice(used_buf);
+        Ok(())
+    }
 
-        #[derive(Debug)]
-        struct Data {
-            // #[columnar(strategy = "RLE")]
-            id: u64,
-            name: String,
-            age: u32,
-        }
-
-        impl Row for Data {
-            fn get_attrs() -> Vec<ColumnAttr> {
-                vec![
-                    ColumnAttr {
-                        index: 1,
-                        strategies: vec![Strategy::Rle, Strategy::Plain],
-                    },
-                    ColumnAttr {
-                        index: 2,
-                        strategies: vec![Strategy::Plain],
-                    },
-                    ColumnAttr {
-                        index: 3,
-                        strategies: vec![Strategy::Plain],
-                    },
-                ]
-            }
-
-            fn get_cells_data<'a: 'c, 'c>(&'a self) -> Vec<CellData<'c>> {
-                vec![
-                    CellData::U64(self.id),
-                    CellData::String(Cow::Borrowed(&self.name)),
-                    CellData::U64(self.age as u64),
-                ]
-            }
-        }
-
-        #[serde_as]
-        #[derive(Debug, Serialize)]
-        struct Store {
-            #[serde_as(as = "Columns")]
-            pub a: Vec<Data>,
-            pub b: String,
-        }
-
-        let store = Store {
-            a: vec![
-                Data {
-                    id: 2,
-                    name: "a".to_string(),
-                    age: 1,
-                },
-                Data {
-                    id: 2,
-                    name: "b".to_string(),
-                    age: 2,
-                },
-                Data {
-                    id: 2,
-                    name: "c".to_string(),
-                    age: 3,
-                },
-            ],
-            b: "b".to_string(),
-        };
-        let mut columnar = ColumnarSerializer::new();
-        store.serialize(&mut columnar).unwrap();
-        println!("{:?}", columnar.to_bytes());
+    #[inline]
+    fn uleb_u64(&mut self, value: u64) -> Result<(), ColumnarError> {
+        let mut buf = [0u8; varint_max::<u64>()];
+        let used_buf = varint_u64(value, &mut buf);
+        self.buf.extend_from_slice(used_buf);
+        Ok(())
     }
 }

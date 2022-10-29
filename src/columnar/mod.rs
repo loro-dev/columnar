@@ -1,21 +1,23 @@
 mod data;
-use std::ops::Deref;
+use std::{collections::HashMap, marker::PhantomData, ops::Deref};
 
 pub use data::CellData;
 mod attr;
 pub use attr::{ColumnAttr, Strategy};
-use serde::{Serialize, Serializer};
-use serde_with::SerializeAs;
+use serde::{Deserialize, Serialize, Serializer};
+use serde_with::{DeserializeAs, SerializeAs};
 
-use crate::columnar_impl::ser::ColumnEncoder;
+use crate::{columnar_impl::ser::ColumnEncoder, de::ColumnDecoder, ColumnarError};
 
-pub trait ColumnOriented {
+pub trait ColumnOriented: Sized {
     fn get_columns<'c>(&'c self) -> Columns<'c>;
+    fn from_columns(columns: Columns) -> Result<Self, ColumnarError>;
 }
 
-pub trait Row {
+pub trait Row: Serialize + Sized {
     fn get_attrs() -> Vec<ColumnAttr>;
     fn get_cells_data<'a: 'c, 'c>(&'a self) -> Vec<CellData<'c>>;
+    fn from_cells_data(cells_data: Vec<CellData>) -> Result<Self, ColumnarError>;
 }
 
 fn transpose<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>> {
@@ -46,13 +48,22 @@ where
         let columns_data = transpose(data);
         Columns::from_rows(columns_data, attrs)
     }
+    fn from_columns(columns: Columns) -> Result<Self, ColumnarError> {
+        let cells_data: Vec<Vec<CellData>> = columns.to_cell_data();
+        let rows_data = transpose(cells_data);
+        let s: Vec<T> = rows_data
+            .into_iter()
+            .map(|row| T::from_cells_data(row).unwrap())
+            .collect();
+        Ok(s)
+    }
 }
 
 // 一个Row以列式排列的数据结构
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Column<'c>(pub(crate) Vec<CellData<'c>>, pub(crate) ColumnAttr);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Columns<'c>(Vec<Column<'c>>);
 
 impl<'c> Deref for Columns<'c> {
@@ -79,11 +90,15 @@ impl<'c> Columns<'c> {
         }
         Self(columns)
     }
+
+    pub(crate) fn to_cell_data(self) -> Vec<Vec<CellData<'c>>> {
+        self.0.into_iter().map(|c| c.0).collect()
+    }
 }
 
 impl<'c, T> From<&'c T> for Columns<'c>
 where
-    T: ColumnOriented + 'c,
+    T: ColumnOriented,
 {
     fn from(obj: &'c T) -> Self {
         obj.get_columns()
@@ -112,5 +127,40 @@ impl Serialize for Columns<'_> {
         columnar.encode(&self).unwrap();
         let bytes = columnar.finish();
         serializer.serialize_bytes(bytes.as_slice())
+    }
+}
+
+impl<'de, T: Deserialize<'de> + Row> DeserializeAs<'de, Vec<T>> for Columns<'de> {
+    fn deserialize_as<D>(deserializer: D) -> Result<Vec<T>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let columns: Columns = Deserialize::deserialize(deserializer)?;
+        let rows = Vec::<T>::from_columns(columns).unwrap();
+        Ok(rows)
+    }
+}
+
+impl<'de> Deserialize<'de> for Columns<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ColumnsVisitor;
+        impl<'de> serde::de::Visitor<'de> for ColumnsVisitor {
+            type Value = Columns<'de>;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a columnar data")
+            }
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let mut decoder = ColumnDecoder::new(v);
+                let columns = decoder.decode_columns();
+                Ok(columns)
+            }
+        }
+        todo!()
     }
 }

@@ -1,26 +1,32 @@
-use std::{fmt::{Display, Formatter, Debug}, error::Error};
+use std::{
+    error::Error,
+    fmt::{Debug, Display, Formatter},
+};
 
-use serde::{ser, de};
-
+use serde::{de, ser};
 
 #[derive(Debug)]
-pub enum ColumnarError{
+pub enum ColumnarError {
     AlreadyEnd,
     InvalidDataType,
     LengthUnknown,
-    SerdeError(String)
+    DeserializeBadLeb,
+    DeserializeBadChar,
+    DeserializeBadUtf8,
+    DeserializeBadOption,
+    SerdeError(String),
 }
 
-impl Display for ColumnarError{
+impl Display for ColumnarError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        // TODO: implement this
         write!(f, "ColumnarError")
     }
-    
 }
 
-impl Error for ColumnarError{}
+impl Error for ColumnarError {}
 
-impl ser::Error for ColumnarError{
+impl ser::Error for ColumnarError {
     fn custom<T: Display>(msg: T) -> Self {
         Self::SerdeError(msg.to_string())
     }
