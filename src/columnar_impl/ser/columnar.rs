@@ -194,9 +194,7 @@ impl<'a> Serializer for &'a mut ColumnarSerializer {
 
     #[inline]
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        if let Some(l) = len {
-            self.serialize_u64(l as u64)?;
-        }
+        self.uleb_usize(len.ok_or(ColumnarError::LengthUnknown)?);
         Ok(self)
     }
 
@@ -236,9 +234,8 @@ impl<'a> Serializer for &'a mut ColumnarSerializer {
     fn serialize_struct(
         self,
         _name: &'static str,
-        len: usize,
+        _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        self.serialize_u64(len as u64)?;
         Ok(self)
     }
 

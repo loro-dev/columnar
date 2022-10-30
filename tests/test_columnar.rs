@@ -8,7 +8,7 @@ use columnar::{
     ColumnOriented, ColumnarError, Columns, Row, Strategy,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 // #[derive(Row)]
 struct Data {
     // #[columnar(strategy = "RLE")]
@@ -37,15 +37,15 @@ impl Row for Data {
         vec![
             ColumnAttr {
                 index: 1,
-                strategies: vec![Strategy::Rle, Strategy::Plain],
+                strategy: None,
             },
             ColumnAttr {
                 index: 2,
-                strategies: vec![Strategy::Plain],
+                strategy: None,
             },
             ColumnAttr {
                 index: 3,
-                strategies: vec![Strategy::Plain],
+                strategy: None,
             },
         ]
     }
@@ -59,7 +59,15 @@ impl Row for Data {
     }
 
     fn from_cells_data(cells_data: Vec<CellData>) -> Result<Self, ColumnarError> {
-        todo!()
+        let mut cells_data = cells_data.into_iter();
+        let id: u64 = cells_data.next().unwrap().try_into()?;
+        let string: String = cells_data.next().unwrap().try_into()?;
+        let age: u64 = cells_data.next().unwrap().try_into()?;
+        Ok(Data {
+            id,
+            name: string,
+            age: age as u32,
+        })
     }
 }
 
@@ -68,23 +76,23 @@ impl Row for HasSubData {
         vec![
             ColumnAttr {
                 index: 1,
-                strategies: vec![Strategy::Rle, Strategy::Plain],
+                strategy: Some(Strategy::Rle),
             },
             ColumnAttr {
                 index: 2,
-                strategies: vec![Strategy::Plain],
+                strategy: None,
             },
             ColumnAttr {
                 index: 3,
-                strategies: vec![Strategy::Plain],
+                strategy: None,
             },
             ColumnAttr {
                 index: 4,
-                strategies: vec![Strategy::Plain],
+                strategy: None,
             },
             ColumnAttr {
                 index: 5,
-                strategies: vec![Strategy::Plain],
+                strategy: None,
             },
         ]
     }
@@ -124,7 +132,7 @@ impl Row for SubData {
         vec![
             ColumnAttr {
                 index: 1,
-                strategies: vec![Strategy::Rle, Strategy::Plain],
+                strategy: Some(Strategy::Rle),
             },
             // ColumnAttr {
             //     index: 2,
@@ -157,7 +165,7 @@ impl Row for SubData {
 }
 
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Store {
     #[serde_as(as = "Columns")]
     pub a: Vec<Data>,
@@ -230,29 +238,27 @@ fn test_sub_data() {
 
 #[test]
 fn test_decode() {
-    let store = StoreWithSubData {
-        a: vec![HasSubData {
-            id: 10,
-            name: "a".to_string(),
-            age: 20,
-            sub: SubData {
-                id: 30,
-                map: HashMap::new(),
+    let store = Store {
+        a: vec![
+            Data {
+                id: 2,
+                name: "a".to_string(),
+                age: 10,
             },
-            list: vec![
-                SubData {
-                    id: 40,
-                    map: HashMap::new(),
-                },
-                SubData {
-                    id: 50,
-                    map: HashMap::new(),
-                },
-            ],
-        }],
+            Data {
+                id: 2,
+                name: "b".to_string(),
+                age: 20,
+            },
+            Data {
+                id: 2,
+                name: "c".to_string(),
+                age: 30,
+            },
+        ],
         b: "b".to_string(),
     };
-    let bytes = columnar_encode(store);
-    let store: StoreWithSubData = columnar_decode(&bytes);
-    println!("{:?}", store);
+    let bytes = columnar_encode(&store);
+    let decode_store: Store = columnar_decode(&bytes);
+    assert_eq!(store, decode_store);
 }

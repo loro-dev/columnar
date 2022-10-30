@@ -10,6 +10,7 @@ pub enum ColumnarError {
     AlreadyEnd,
     InvalidDataType,
     LengthUnknown,
+    InvalidStrategy,
     DeserializeBadLeb,
     DeserializeBadChar,
     DeserializeBadUtf8,

@@ -1,5 +1,5 @@
 mod data;
-use std::{collections::HashMap, marker::PhantomData, ops::Deref};
+use std::{marker::PhantomData, ops::Deref};
 
 pub use data::CellData;
 mod attr;
@@ -64,7 +64,7 @@ where
 pub struct Column<'c>(pub(crate) Vec<CellData<'c>>, pub(crate) ColumnAttr);
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Columns<'c>(Vec<Column<'c>>);
+pub struct Columns<'c>(pub(crate) Vec<Column<'c>>);
 
 impl<'c> Deref for Columns<'c> {
     type Target = Vec<Column<'c>>;
@@ -141,26 +141,26 @@ impl<'de, T: Deserialize<'de> + Row> DeserializeAs<'de, Vec<T>> for Columns<'de>
     }
 }
 
-impl<'de> Deserialize<'de> for Columns<'de> {
+impl<'de: 'c, 'c> Deserialize<'de> for Columns<'c> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        struct ColumnsVisitor;
-        impl<'de> serde::de::Visitor<'de> for ColumnsVisitor {
-            type Value = Columns<'de>;
+        struct ColumnsVisitor<'c>(PhantomData<&'c ()>);
+        impl<'de: 'c, 'c> serde::de::Visitor<'de> for ColumnsVisitor<'c> {
+            type Value = Columns<'c>;
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                 formatter.write_str("a columnar data")
             }
-            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
                 let mut decoder = ColumnDecoder::new(v);
-                let columns = decoder.decode_columns();
+                let columns = decoder.decode().unwrap();
                 Ok(columns)
             }
         }
-        todo!()
+        deserializer.deserialize_bytes(ColumnsVisitor(PhantomData))
     }
 }
