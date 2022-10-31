@@ -17,13 +17,13 @@ struct Data {
     age: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct SubData {
     id: u8,
     map: HashMap<String, i32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct HasSubData {
     id: u64,
     name: String,
@@ -172,7 +172,7 @@ struct Store {
     pub b: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct StoreWithSubData {
     pub a: Vec<HasSubData>,
     pub b: String,
@@ -260,5 +260,35 @@ fn test_decode() {
     };
     let bytes = columnar_encode(&store);
     let decode_store: Store = columnar_decode(&bytes);
+    assert_eq!(store, decode_store);
+}
+
+#[test]
+fn test_decode_nested() {
+    let store = StoreWithSubData {
+        a: vec![HasSubData {
+            id: 10,
+            name: "a".to_string(),
+            age: 20,
+            sub: SubData {
+                id: 30,
+                map: HashMap::new(),
+            },
+            list: vec![
+                SubData {
+                    id: 40,
+                    map: HashMap::new(),
+                },
+                SubData {
+                    id: 50,
+                    map: HashMap::new(),
+                },
+            ],
+        }],
+        b: "b".to_string(),
+    };
+    let bytes = columnar_encode(&store);
+    println!("{:?}", bytes);
+    let decode_store: StoreWithSubData = columnar_decode(&bytes);
     assert_eq!(store, decode_store);
 }
