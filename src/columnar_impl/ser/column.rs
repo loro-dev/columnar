@@ -1,13 +1,11 @@
 use serde::{ser::SerializeSeq, Serializer};
 
 use crate::{
-    columnar_impl::ser::rle::RleEncoder, CellData, Column, ColumnarError, Columns, Strategy,
+    columnar_impl::rle::{AnyRleEncoder, BoolRleEncoder, RleEncoder},
+    CellData, Column, ColumnarError, Columns, Strategy,
 };
 
-use super::{
-    columnar::ColumnarSerializer,
-    rle::{AnyRleEncoder, BoolRleEncoder},
-};
+use super::columnar::ColumnarSerializer;
 
 pub struct ColumnEncoder {
     // ColumnEncoder 中的 serde

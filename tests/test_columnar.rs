@@ -37,7 +37,7 @@ impl Row for Data {
         vec![
             ColumnAttr {
                 index: 1,
-                strategy: None,
+                strategy: Some(Strategy::Rle),
             },
             ColumnAttr {
                 index: 2,
@@ -241,17 +241,17 @@ fn test_decode() {
     let store = Store {
         a: vec![
             Data {
-                id: 2,
+                id: 3,
                 name: "a".to_string(),
                 age: 10,
             },
             Data {
-                id: 2,
+                id: 3,
                 name: "b".to_string(),
                 age: 20,
             },
             Data {
-                id: 2,
+                id: 3,
                 name: "c".to_string(),
                 age: 30,
             },

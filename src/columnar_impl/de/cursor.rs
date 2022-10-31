@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::ops::Range;
 
 use crate::ColumnarError;
@@ -43,5 +44,15 @@ impl<'de> Cursor<'de> {
 
     pub(crate) fn remain(&self) -> &'de [u8] {
         &self.bytes[self.range.start..self.range.end]
+    }
+}
+
+impl Debug for Cursor<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cursor")
+            .field("bytes", &self.bytes)
+            .field("range", &self.range)
+            .field("real bytes", &self.remain())
+            .finish()
     }
 }

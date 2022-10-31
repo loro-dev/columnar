@@ -15,6 +15,7 @@ pub enum ColumnarError {
     DeserializeBadChar,
     DeserializeBadUtf8,
     DeserializeBadOption,
+    RleError(String),
     SerdeError(String),
 }
 

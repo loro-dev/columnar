@@ -3,6 +3,7 @@ use serde::de::{
 };
 use serde::Deserializer;
 
+use crate::columnar_impl::zigzag::{de_zig_zag_i16, de_zig_zag_i32, de_zig_zag_i64};
 use crate::{
     columnar_impl::leb128::{max_of_last_byte, varint_max},
     ColumnarError,
@@ -11,7 +12,7 @@ use crate::{
 use super::cursor::Cursor;
 
 pub struct ColumnarDeserializer<'de> {
-    cursor: Cursor<'de>,
+    pub(crate) cursor: Cursor<'de>,
 }
 
 impl<'de> ColumnarDeserializer<'de> {
@@ -65,7 +66,7 @@ impl<'de, 'a> Deserializer<'de> for &'a mut ColumnarDeserializer<'de> {
         V: serde::de::Visitor<'de>,
     {
         let v = self.take_leb_u16()?;
-        visitor.visit_u16(v)
+        visitor.visit_i16(de_zig_zag_i16(v))
     }
 
     #[inline]
@@ -74,7 +75,7 @@ impl<'de, 'a> Deserializer<'de> for &'a mut ColumnarDeserializer<'de> {
         V: serde::de::Visitor<'de>,
     {
         let v = self.take_leb_u32()?;
-        visitor.visit_u32(v)
+        visitor.visit_i32(de_zig_zag_i32(v))
     }
 
     #[inline]
@@ -83,7 +84,7 @@ impl<'de, 'a> Deserializer<'de> for &'a mut ColumnarDeserializer<'de> {
         V: serde::de::Visitor<'de>,
     {
         let v = self.take_leb_u64()?;
-        visitor.visit_u64(v)
+        visitor.visit_i64(de_zig_zag_i64(v))
     }
 
     #[inline]

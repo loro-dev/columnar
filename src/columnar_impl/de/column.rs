@@ -1,4 +1,7 @@
-use crate::{CellData, Column, ColumnAttr, ColumnarError, Columns, Strategy};
+use crate::{
+    columnar_impl::rle::{AnyRleDecoder, RleDecoder},
+    CellData, Column, ColumnAttr, ColumnarError, Columns, Strategy,
+};
 
 use super::columnar::ColumnarDeserializer;
 use serde::de::Deserialize;
@@ -19,7 +22,8 @@ impl<'de: 'c, 'c> ColumnDecoder<'de> {
         let column_len = Deserialize::deserialize(&mut self.de)?;
         let mut columns = Vec::with_capacity(column_len);
         for index in 0..column_len {
-            columns.push(self.decode_column(index)?);
+            let column = self.decode_column(index)?;
+            columns.push(column);
         }
         Ok(Columns(columns))
     }
@@ -27,7 +31,23 @@ impl<'de: 'c, 'c> ColumnDecoder<'de> {
     fn decode_column(&mut self, index: usize) -> Result<Column<'c>, ColumnarError> {
         let strategy = Strategy::try_from_u8(u8::deserialize(&mut self.de)?)?;
         let mut cells_data = self.decode_plain()?;
-        if let Some(strategy) = &strategy {}
+        if let Some(strategy) = &strategy {
+            match strategy {
+                Strategy::Rle => {
+                    cells_data = self.decode_rle(cells_data)?;
+                }
+                Strategy::BoolRle => {
+                    cells_data = self.decode_bool_rle(cells_data)?;
+                }
+                Strategy::Delta => {
+                    cells_data = self.decode_delta(cells_data)?;
+                }
+                Strategy::DeltaRle => {
+                    cells_data = self.decode_rle(cells_data)?;
+                    cells_data = self.decode_delta(cells_data)?;
+                }
+            }
+        }
 
         Ok(Column(cells_data, ColumnAttr { index, strategy }))
     }
@@ -42,15 +62,29 @@ impl<'de: 'c, 'c> ColumnDecoder<'de> {
         Ok(cells_data)
     }
 
-    fn decode_rle(&self, cells_data: Vec<CellData>) -> Result<Vec<CellData>, ColumnarError> {
+    fn decode_rle(
+        &self,
+        cells_data: Vec<CellData<'c>>,
+    ) -> Result<Vec<CellData<'c>>, ColumnarError> {
+        println!("decode_rle {:?}", &cells_data);
+        let mut rle_decoder = RleDecoder::new(AnyRleDecoder::new(
+            cells_data.into_iter().map(|c| c.into()).collect(),
+        ));
+        let result = rle_decoder.decode();
+        Ok(result)
+    }
+
+    fn decode_bool_rle(
+        &self,
+        cells_data: Vec<CellData<'c>>,
+    ) -> Result<Vec<CellData<'c>>, ColumnarError> {
         todo!()
     }
 
-    fn decode_bool_rle(&self, cells_data: Vec<CellData>) -> Result<Vec<CellData>, ColumnarError> {
-        todo!()
-    }
-
-    fn decode_delta(&self, cells_data: Vec<CellData>) -> Result<Vec<CellData>, ColumnarError> {
+    fn decode_delta(
+        &self,
+        cells_data: Vec<CellData<'c>>,
+    ) -> Result<Vec<CellData<'c>>, ColumnarError> {
         todo!()
     }
 }
