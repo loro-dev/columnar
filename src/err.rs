@@ -1,41 +1,16 @@
-use std::{
-    error::Error,
-    fmt::{Debug, Display, Formatter},
-};
+use postcard::Error as PostcardError;
+use thiserror::Error;
 
-use serde::{de, ser};
-
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum ColumnarError {
-    AlreadyEnd,
-    InvalidDataType,
-    LengthUnknown,
-    InvalidStrategy,
-    DeserializeBadLeb,
-    DeserializeBadChar,
-    DeserializeBadUtf8,
-    DeserializeBadOption,
-    RleError(String),
-    SerdeError(String),
-}
-
-impl Display for ColumnarError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: implement this
-        write!(f, "ColumnarError")
-    }
-}
-
-impl Error for ColumnarError {}
-
-impl ser::Error for ColumnarError {
-    fn custom<T: Display>(msg: T) -> Self {
-        Self::SerdeError(msg.to_string())
-    }
-}
-
-impl de::Error for ColumnarError {
-    fn custom<T: Display>(msg: T) -> Self {
-        Self::SerdeError(msg.to_string())
-    }
+    #[error("serialize or deserialize error")]
+    SerializeError(#[from] PostcardError),
+    #[error("`{0}` during rle encoding")]
+    RleEncodeError(String),
+    #[error("`{0}` during rle decoding")]
+    RleDecodeError(String),
+    #[error("invalid strategy code `{0}`")]
+    InvalidStrategy(u8),
+    #[error("unknown data store error")]
+    Unknown,
 }
