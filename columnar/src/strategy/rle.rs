@@ -1,17 +1,12 @@
+/// Reference automerge implementation:
+/// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
 use crate::{
     columnar::{ColumnarDecoder, ColumnarEncoder},
     ColumnarError,
 };
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-/// Reference automerge implementation:
-/// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
-use std::{borrow::Borrow, fmt::Debug, marker::PhantomData, ops::DerefMut};
+use serde::{Deserialize, Serialize};
 
-pub trait Rle {
-    type Value: PartialEq + Clone + Serialize;
-    fn append<BT: Borrow<Self::Value>>(&mut self, value: BT) -> Result<(), ColumnarError>;
-    fn finish(self) -> Result<(), ColumnarError>;
-}
+use std::{borrow::Borrow, marker::PhantomData, ops::DerefMut};
 
 pub struct BoolRleEncoder<'a> {
     ser: &'a mut ColumnarEncoder,
@@ -27,23 +22,19 @@ impl<'a> BoolRleEncoder<'a> {
             count: 0,
         }
     }
-}
 
-impl<'a> Rle for BoolRleEncoder<'a> {
-    type Value = bool;
-
-    fn append<BT: Borrow<Self::Value>>(&mut self, value: BT) -> Result<(), ColumnarError> {
+    pub(crate) fn append(&mut self, value: bool) -> Result<(), ColumnarError> {
         if *value.borrow() == self.last {
             self.count += 1;
         } else {
-            self.count.serialize(self.ser.deref_mut());
+            self.count.serialize(self.ser.deref_mut())?;
             self.last = *value.borrow();
             self.count = 1;
         }
         Ok(())
     }
 
-    fn finish(mut self) -> Result<(), ColumnarError> {
+    pub(crate) fn finish(self) -> Result<(), ColumnarError> {
         if self.count > 0 {
             self.count.serialize(self.ser.deref_mut()).unwrap();
         }
@@ -56,17 +47,22 @@ pub struct AnyRleEncoder<'a, T> {
     state: RleState<T>,
 }
 
-impl<'a, T> Rle for AnyRleEncoder<'a, T>
+impl<'a, T> AnyRleEncoder<'a, T>
 where
-    T: Clone + PartialEq + Serialize,
+    T: PartialEq + Clone + Serialize,
 {
-    type Value = T;
+    pub fn new(ser: &'a mut ColumnarEncoder) -> Self {
+        Self {
+            ser,
+            state: RleState::Empty,
+        }
+    }
 
-    fn append<BT: Borrow<Self::Value>>(&mut self, value: BT) -> Result<(), ColumnarError> {
+    pub(crate) fn append<BT: Borrow<T>>(&mut self, value: BT) -> Result<(), ColumnarError> {
         self.append_value(value)
     }
 
-    fn finish(mut self) -> Result<(), ColumnarError> {
+    pub(crate) fn finish(mut self) -> Result<(), ColumnarError> {
         match self.take_state() {
             RleState::LoneVal(value) => self.flush_lit_run(vec![value]),
             RleState::Run(value, len) => self.flush_run(&value, len),
@@ -77,18 +73,6 @@ where
             RleState::Empty => {}
         };
         Ok(())
-    }
-}
-
-impl<'a, T> AnyRleEncoder<'a, T>
-where
-    T: PartialEq + Clone + Serialize,
-{
-    pub fn new(ser: &'a mut ColumnarEncoder) -> Self {
-        Self {
-            ser,
-            state: RleState::Empty,
-        }
     }
 
     fn append_value<BT: Borrow<T>>(&mut self, value: BT) -> Result<(), ColumnarError> {
@@ -158,12 +142,6 @@ enum RleState<T> {
     Run(T, usize),
 }
 
-pub(crate) trait DeRle {
-    type Value;
-    fn decode(&mut self) -> Result<Vec<Self::Value>, ColumnarError>;
-    fn try_next(&mut self) -> Result<Option<Self::Value>, ColumnarError>;
-}
-
 pub(crate) struct AnyRleDecoder<'a, 'de, T> {
     de: &'a mut ColumnarDecoder<'de>,
     last_value: Option<T>,
@@ -185,15 +163,8 @@ where
             lifetime: PhantomData,
         }
     }
-}
 
-impl<'a, 'de, T> DeRle for AnyRleDecoder<'a, 'de, T>
-where
-    T: Clone + Deserialize<'de>,
-{
-    type Value = T;
-
-    fn decode(&mut self) -> Result<Vec<Self::Value>, ColumnarError> {
+    pub(crate) fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
             values.push(value);
@@ -201,7 +172,7 @@ where
         Ok(values)
     }
 
-    fn try_next(&mut self) -> Result<Option<Self::Value>, ColumnarError> {
+    pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
         while self.count == 0 {
             // if self.de.is_empty() {
             //     return Ok(None);
@@ -231,10 +202,60 @@ where
     }
 }
 
+pub(crate) struct BoolRleDecoder<'a, 'de> {
+    de: &'a mut ColumnarDecoder<'de>,
+    last_value: bool,
+    count: usize,
+}
+
+impl<'a, 'de> BoolRleDecoder<'a, 'de> {
+    pub(crate) fn new(de: &'a mut ColumnarDecoder<'de>) -> Self {
+        Self {
+            de,
+            last_value: true,
+            count: 0,
+        }
+    }
+
+    pub(crate) fn decode(&mut self) -> Result<Vec<bool>, ColumnarError> {
+        let mut values = Vec::new();
+        while let Some(value) = self.try_next()? {
+            values.push(value);
+        }
+        Ok(values)
+    }
+
+    // Safety: assert T is bool
+    pub(crate) unsafe fn decode_to_any<T>(&mut self) -> Result<Vec<T>, ColumnarError>
+    where
+        T: Clone + Deserialize<'de>,
+    {
+        let mut values = Vec::new();
+        while let Some(value) = self.try_next()? {
+            let data: T = std::mem::transmute_copy(&value);
+            values.push(data);
+        }
+        Ok(values)
+    }
+
+    fn try_next(&mut self) -> Result<Option<bool>, ColumnarError> {
+        while self.count == 0 {
+            let count = usize::deserialize(self.de.deref_mut());
+            if count.is_err() && self.count == 0 {
+                return Ok(None);
+            }
+            self.count = count.unwrap();
+            self.last_value = !self.last_value;
+        }
+        self.count -= 1;
+        Ok(Some(self.last_value))
+    }
+}
+
 mod test {
     use crate::{
         columnar::{ColumnarDecoder, ColumnarEncoder},
-        strategy::rle::{AnyRleDecoder, AnyRleEncoder, BoolRleEncoder, DeRle, Rle},
+        strategy::rle::{AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder},
     };
 
     #[test]
@@ -256,7 +277,6 @@ mod test {
 
     #[test]
     fn test_bool_rle() {
-        let mut buf = [0; 3];
         let mut columnar = ColumnarEncoder::new();
         let mut rle_encoder = BoolRleEncoder::new(&mut columnar);
         rle_encoder.append(true).unwrap();
@@ -265,6 +285,13 @@ mod test {
         rle_encoder.append(false).unwrap();
         rle_encoder.append(false).unwrap();
         rle_encoder.finish().unwrap();
+        let buf = columnar.into_bytes();
         assert_eq!(&buf, &[0, 2, 3]);
+        let mut columnar_decoder = ColumnarDecoder::new(buf.as_slice());
+        let mut rle_decoder = BoolRleDecoder::new(&mut columnar_decoder);
+        assert_eq!(
+            rle_decoder.decode().unwrap(),
+            vec![true, true, false, false, false]
+        );
     }
 }

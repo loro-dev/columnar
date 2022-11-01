@@ -1,13 +1,2 @@
-[package]
-name = "columnar"
-version = "0.1.0"
-edition = "2021"
-
-[dev-dependencies]
-serde = { version = "1.0.147", features = ["derive"] }
-
-[dependencies]
-serde = { version = "1.0"}
-postcard = {version="1.0", features=["alloc"]}
-thiserror = "1.0"
-
+[workspace]
+members = [ "columnar"]

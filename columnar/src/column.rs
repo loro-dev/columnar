@@ -1,10 +1,13 @@
-use std::{marker::PhantomData, ops::DerefMut};
+use std::{any::TypeId, marker::PhantomData, ops::DerefMut};
 
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::{
     columnar::ColumnarEncoder,
-    strategy::{AnyRleDecoder, AnyRleEncoder, DeRle, Rle, Strategy},
+    strategy::{
+        AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaRleDecoder,
+        DeltaRleEncoder, Strategy,
+    },
     ColumnarDecoder, ColumnarError,
 };
 
@@ -30,6 +33,7 @@ pub(crate) struct ColumnEncoder<T: Clone> {
     ser: ColumnarEncoder,
     _c: PhantomData<Column<T>>,
 }
+
 impl<'c, T> ColumnEncoder<T>
 where
     T: Clone + Serialize + PartialEq,
@@ -45,9 +49,8 @@ where
         self.serialize_strategy(&column.attr.strategy)?;
         match column.attr.strategy {
             Some(Strategy::Rle) => self.encode_rle(&column.data)?,
-            Some(Strategy::BoolRle) => todo!(),
-            Some(Strategy::Delta) => todo!(),
-            Some(Strategy::DeltaRle) => todo!(),
+            Some(Strategy::BoolRle) => self.encode_bool_rle(&column.data)?,
+            Some(Strategy::DeltaRle) => self.encode_delta_rle(&column.data)?,
             None => self.encode_no_strategy(&column.data)?,
         };
         Ok(self.ser.into_bytes())
@@ -74,6 +77,33 @@ where
         }
         rle_encoder.finish()?;
         Ok(())
+    }
+
+    #[inline]
+    fn encode_bool_rle(&mut self, column: &Vec<T>) -> Result<(), ColumnarError> {
+        // if TypeId::of::<T>() != TypeId::of::<bool>() {
+        //     return Err(ColumnarError::RleEncodeError("bool ".to_string()));
+        // }
+        let mut rle_encoder = BoolRleEncoder::new(&mut self.ser);
+        // Safety: We know that T is bool
+        unsafe {
+            for data in column.into_iter() {
+                let bool_data: &bool = std::mem::transmute_copy(&data);
+                rle_encoder.append(*bool_data)?
+            }
+        }
+        rle_encoder.finish()?;
+        Ok(())
+    }
+
+    #[inline]
+    fn encode_delta_rle(&mut self, column: &Vec<T>) -> Result<(), ColumnarError> {
+        let mut delta_rle = DeltaRleEncoder::new(&mut self.ser);
+        for data in column.into_iter() {
+            unsafe { delta_rle.append_any(data)? }
+        }
+
+        delta_rle.finish()
     }
 
     #[inline]
@@ -114,8 +144,7 @@ where
         let strategy = self.deserialize_strategy()?;
         let vec_data = match strategy {
             Some(Strategy::Rle) => self.decode_rle(),
-            Some(Strategy::BoolRle) => todo!(),
-            Some(Strategy::Delta) => todo!(),
+            Some(Strategy::BoolRle) => self.decode_bool_rle(),
             Some(Strategy::DeltaRle) => todo!(),
             None => self.decode_no_strategy(),
         };
@@ -125,6 +154,16 @@ where
     fn decode_rle(&mut self) -> Result<Vec<T>, ColumnarError> {
         let mut rle_decoder = AnyRleDecoder::<T>::new(&mut self.de);
         rle_decoder.decode()
+    }
+
+    fn decode_bool_rle(&mut self) -> Result<Vec<T>, ColumnarError> {
+        let mut bool_rle_decoder = BoolRleDecoder::new(&mut self.de);
+        unsafe { bool_rle_decoder.decode_to_any() }
+    }
+
+    fn decode_delta_rle(&mut self) -> Result<Vec<T>, ColumnarError> {
+        let mut delta_rle_decoder = DeltaRleDecoder::new(&mut self.de);
+        unsafe { delta_rle_decoder.decode_to_any() }
     }
 
     fn decode_no_strategy(&mut self) -> Result<Vec<T>, ColumnarError> {

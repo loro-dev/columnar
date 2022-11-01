@@ -9,7 +9,7 @@ use crate::{
 
 impl<T> Serialize for Column<T>
 where
-    T: Clone + Serialize + PartialEq,
+    T: Clone + Serialize + PartialEq + 'static,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
