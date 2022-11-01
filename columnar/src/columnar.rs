@@ -20,11 +20,6 @@ impl<'de> Cursor<'de> {
             end: bytes.len(),
         }
     }
-
-    fn is_empty(&self) -> bool {
-        println!("is_empty: {}", self.pos);
-        self.pos + 1 > self.end
-    }
 }
 
 impl<'de> DeFlavor<'de> for Cursor<'de> {
