@@ -1,7 +1,7 @@
 use serde::{ser::SerializeTuple, Deserialize, Deserializer, Serialize};
 use std::{borrow::Cow, ops::DerefMut};
 
-use columnar::{Column, ColumnAttr, ColumnarDecoder, ColumnarEncoder, Row, Strategy};
+use columnar::{Column, ColumnAttr, ColumnarDecoder, ColumnarEncoder, Strategy, VecRow};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Data {
@@ -11,14 +11,14 @@ struct Data {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Store {
-    #[serde(serialize_with = "Data::serialize_vec_as_columns")]
-    #[serde(deserialize_with = "Data::deserialize_columns_to_vec")]
+    #[serde(serialize_with = "Data::serialize_columns")]
+    #[serde(deserialize_with = "Data::deserialize_columns")]
     data: Vec<Data>,
 }
 
-impl Row for Data {
+impl VecRow for Data {
     const FIELD_NUM: usize = 2;
-    fn serialize_vec_as_columns<'c, S>(rows: &'c Vec<Self>, ser: S) -> Result<S::Ok, S::Error>
+    fn serialize_columns<'c, S>(rows: &'c Vec<Self>, ser: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -47,7 +47,7 @@ impl Row for Data {
         seq_encoder.end()
     }
 
-    fn deserialize_columns_to_vec<'de, D>(de: D) -> Result<Vec<Self>, D::Error>
+    fn deserialize_columns<'de, D>(de: D) -> Result<Vec<Self>, D::Error>
     where
         D: Deserializer<'de>,
     {

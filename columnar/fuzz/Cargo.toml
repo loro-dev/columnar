@@ -23,7 +23,13 @@ members = ["."]
 debug = 1
 
 [[bin]]
-name = "encode_decode"
-path = "fuzz_targets/encode_decode.rs"
+name = "vec"
+path = "fuzz_targets/vec.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "hashmap"
+path = "fuzz_targets/hashmap.rs"
 test = false
 doc = false
