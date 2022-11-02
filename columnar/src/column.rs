@@ -1,4 +1,4 @@
-use std::{any::TypeId, marker::PhantomData, ops::DerefMut};
+use std::{marker::PhantomData, ops::DerefMut};
 
 use serde::{Deserialize, Serialize, Serializer};
 
