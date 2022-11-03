@@ -1,20 +1,21 @@
 use serde::{ser::SerializeTuple, Deserialize, Deserializer, Serialize};
 use std::{borrow::Cow, collections::HashMap};
 
-use crate::{Column, ColumnAttr, MapRow, Strategy, VecRow};
+use crate::{Column, ColumnAttr, ColumnarVec, MapRow, Strategy, VecRow};
 
-type DeltaType = i64;
+type DeltaType = u32;
 
-#[derive(arbitrary::Arbitrary, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(arbitrary::Arbitrary, Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Data {
     pub id: DeltaType,
     pub name: String,
 }
 
-#[derive(arbitrary::Arbitrary, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(arbitrary::Arbitrary, Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct VecStore {
     #[serde(serialize_with = "VecRow::serialize_columns")]
     #[serde(deserialize_with = "VecRow::deserialize_columns")]
+    // #[serde_as(as = "ColumnarVec<Data>")]
     pub data: Vec<Data>,
     pub id: u8,
 }
@@ -130,28 +131,60 @@ impl<'de> MapRow<'de> for Data {
     }
 }
 
-// #[derive(arbitrary::Arbitrary, Debug, Serialize, Deserialize, PartialEq)]
-// pub struct NestedStore {
-//     stores: Vec<VecStore>,
-//     stores2: HashMap<String, MapStore>,
-// }
+#[derive(arbitrary::Arbitrary, Debug, Serialize, Deserialize, PartialEq)]
+pub struct NestedStore {
+    #[serde(serialize_with = "VecRow::serialize_columns")]
+    #[serde(deserialize_with = "VecRow::deserialize_columns")]
+    pub stores: Vec<VecStore>,
+    pub stores2: HashMap<String, MapStore>,
+}
 
-// impl VecRow for VecStore {
-//     const FIELD_NUM: usize = 2;
+impl VecRow for VecStore {
+    const FIELD_NUM: usize = 2;
 
-//     fn serialize_columns<'c, S>(rows: &'c Vec<Self>, ser: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         let (column1, column2): (Vec<Vec<Data>>, Vec<u8>) =
-//             rows.iter().map(|row| (row.data, row.id)).unzip();
-//         todo!()
-//     }
+    fn serialize_columns<'c, S>(rows: &'c Vec<Self>, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let (column1, column2): (Vec<ColumnarVec<Data>>, Vec<u8>) = rows
+            .iter()
+            .map(|row| (ColumnarVec::from_borrowed(&row.data), row.id))
+            .unzip();
+        let column1 = Column::new(
+            column1,
+            ColumnAttr {
+                index: 0,
+                strategy: None,
+            },
+        );
+        let column2 = Column::new(
+            column2,
+            ColumnAttr {
+                index: 1,
+                strategy: Some(Strategy::DeltaRle),
+            },
+        );
+        let mut seq_encoder = ser.serialize_tuple(<VecStore as VecRow>::FIELD_NUM)?;
+        seq_encoder.serialize_element(&column1)?;
+        seq_encoder.serialize_element(&column2)?;
+        seq_encoder.end()
+    }
 
-//     fn deserialize_columns<'de, D>(de: D) -> Result<Vec<Self>, D::Error>
-//     where
-//         D: serde::Deserializer<'de>,
-//     {
-//         todo!()
-//     }
-// }
+    fn deserialize_columns<'de, D>(de: D) -> Result<Vec<Self>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let (column1, column2): (Column<ColumnarVec<Data>>, Column<u8>) =
+            Deserialize::deserialize(de)?;
+        let ans = column1
+            .data
+            .into_iter()
+            .zip(column2.data.into_iter())
+            .map(|(data, id)| Self {
+                data: data.into(),
+                id,
+            })
+            .collect();
+        Ok(ans)
+    }
+}
