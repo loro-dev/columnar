@@ -7,7 +7,7 @@ pub use column::{Column, ColumnAttr};
 mod columnar;
 pub use columnar::{ColumnarDecoder, ColumnarEncoder};
 mod row;
-pub use row::{MapRow, VecRow};
+pub use row::{MapRow, VecRow, ColumnarVec};
 mod strategy;
 use serde::{Deserialize, Serialize};
 pub use strategy::Strategy;

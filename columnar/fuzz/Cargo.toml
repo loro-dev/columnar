@@ -33,3 +33,9 @@ name = "hashmap"
 path = "fuzz_targets/hashmap.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "nested_store"
+path = "fuzz_targets/nested_store.rs"
+test = false
+doc = false
