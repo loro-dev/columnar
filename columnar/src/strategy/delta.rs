@@ -53,7 +53,27 @@ impl<'a> DeltaRleEncoder<'a> {
         //         "only num type can be encoded by delta encoder".to_string(),
         //     ));
         // };
-        let value: i64 = std::mem::transmute_copy(value);
+        let padding = std::mem::size_of::<i64>() / std::mem::size_of::<T>();
+        let value = match padding {
+            1 => std::mem::transmute_copy(value),
+            2 => {
+                let value: u32 = std::mem::transmute_copy(value);
+                value as i64
+            }
+            4 => {
+                let value: u16 = std::mem::transmute_copy(value);
+                value as i64
+            }
+            8 => {
+                let value: u8 = std::mem::transmute_copy(value);
+                value as i64
+            }
+            _ => {
+                return Err(ColumnarError::RleEncodeError(
+                    "only 8 & 16 & 32 num type can be encoded by delta encoder".to_string(),
+                ));
+            }
+        };
         let delta = value.saturating_sub(self.absolute_value);
         self.absolute_value = value;
         self.rle.append(&delta)
@@ -122,5 +142,28 @@ impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
         } else {
             Ok(None)
         }
+    }
+}
+
+mod test {
+    #[test]
+    fn test_delta_rle() {
+        use super::*;
+        let mut columnar = ColumnarEncoder::new();
+        let mut encoder = DeltaRleEncoder::new(&mut columnar);
+        encoder.append(81020993).unwrap();
+        encoder.append(20000000).unwrap();
+        encoder.append(3).unwrap();
+        encoder.append(4).unwrap();
+        encoder.append(5).unwrap();
+        encoder.finish().unwrap();
+        let buf = columnar.into_bytes();
+        println!("{:?}", buf);
+        let mut decoder = ColumnarDecoder::new(&buf);
+        let mut delta_rle_decoder = DeltaRleDecoder::new(&mut decoder);
+        let values: Vec<i64> = unsafe { delta_rle_decoder.decode_to_any().unwrap() };
+        // let values: Vec<i64> = delta_rle_decoder.decode().unwrap();
+        println!("{:?}", values);
+        assert_eq!(values, vec![81020993, 20000000, 3, 4, 5]);
     }
 }
