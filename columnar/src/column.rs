@@ -145,7 +145,7 @@ where
         let vec_data = match strategy {
             Some(Strategy::Rle) => self.decode_rle(),
             Some(Strategy::BoolRle) => self.decode_bool_rle(),
-            Some(Strategy::DeltaRle) => todo!(),
+            Some(Strategy::DeltaRle) => self.decode_delta_rle(),
             None => self.decode_no_strategy(),
         };
         Ok(Column::new(vec_data?, ColumnAttr { index: 0, strategy }))
