@@ -1,25 +1,27 @@
-mod columnar;
-pub use columnar::{CellData, Column, ColumnAttr, ColumnOriented, Columns, Row, Strategy};
-mod columnar_impl;
-pub use columnar_impl::{de, ser};
-use ser::ColumnarSerializer;
 mod err;
-pub use err::ColumnarError;
-use serde::Serialize;
+use std::ops::DerefMut;
 
-pub fn columnar_encode<T>(obj: T) -> Vec<u8>
-where
-    T: Serialize,
-{
-    let mut serializer = ColumnarSerializer::new();
-    obj.serialize(&mut serializer).unwrap();
-    serializer.to_bytes()
+pub use err::ColumnarError;
+mod column;
+pub use column::{Column, ColumnAttr};
+mod columnar;
+pub use columnar::{ColumnarDecoder, ColumnarEncoder};
+mod row;
+mod strategy;
+pub use row::Row;
+use serde::{Deserialize, Serialize};
+pub use strategy::Strategy;
+mod serde_impl;
+
+pub fn to_vec<T: Serialize>(val: &T) -> Result<Vec<u8>, ColumnarError> {
+    let mut encoder = ColumnarEncoder::new();
+    val.serialize(encoder.deref_mut())
+        .map_err(|e| ColumnarError::SerializeError(e as postcard::Error))?;
+    Ok(encoder.into_bytes())
 }
 
-pub fn columnar_decode<'de, T>(bytes: &'de [u8]) -> T
-where
-    T: serde::Deserialize<'de>,
-{
-    let mut de = de::ColumnarDeserializer::new(bytes);
-    T::deserialize(&mut de).unwrap()
+pub fn from_bytes<'de, 'a: 'de, T: Deserialize<'de>>(bytes: &'a [u8]) -> Result<T, ColumnarError> {
+    let mut decoder = ColumnarDecoder::<'de>::new(&bytes);
+    T::deserialize(decoder.deref_mut())
+        .map_err(|e| ColumnarError::SerializeError(e as postcard::Error))
 }
