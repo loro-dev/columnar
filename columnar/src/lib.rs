@@ -7,13 +7,15 @@ pub use column::{Column, ColumnAttr};
 mod columnar;
 pub use columnar::{ColumnarDecoder, ColumnarEncoder};
 mod row;
-pub use row::{MapRow, VecRow, ColumnarVec};
+pub use row::{ColumnarVec, MapRow, VecRow};
 mod strategy;
 use serde::{Deserialize, Serialize};
 pub use strategy::Strategy;
 mod serde_impl;
 
-// #[cfg(feature = "fuzzing")]
+pub use columnar_derive::*;
+
+#[cfg(feature = "fuzzing")]
 pub mod fuzz;
 
 pub fn to_vec<T: Serialize>(val: &T) -> Result<Vec<u8>, ColumnarError> {

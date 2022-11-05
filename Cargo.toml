@@ -1,2 +1,2 @@
 [workspace]
-members = [ "columnar"]
+members = ["columnar", "columnar_derive", "dev"]
