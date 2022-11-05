@@ -1,5 +1,5 @@
 [package]
-name = "serde_derive"
+name = "columnar_derive"
 version = "0.1.0"
 
 [lib]
@@ -10,3 +10,4 @@ proc-macro = true
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = {version="1.0.103",  features=["full", "extra-traits"]}
+darling = "0.14.2"

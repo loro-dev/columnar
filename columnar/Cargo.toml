@@ -5,6 +5,8 @@ edition = "2021"
 
 [dev-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
+criterion = "0.4"
+
 
 [dependencies]
 serde = { version = "1.0"}
@@ -12,7 +14,9 @@ postcard = {version="1.0", features=["alloc"]}
 thiserror = "1.0"
 rand = { version = "0.8.5", optional = true }
 arbitrary = { version = "1.1.7",  features=["derive"], optional = true  }
+columnar_derive = { path = "../columnar_derive" }
 
 [features]
+default = ["fuzzing"]
 fuzzing = ["rand", "arbitrary"]
 
