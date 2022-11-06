@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use crate::{ColumnarDecoder, ColumnarEncoder, ColumnarError};
 
 use super::{AnyRleDecoder, AnyRleEncoder};
