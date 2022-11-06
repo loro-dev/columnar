@@ -35,10 +35,9 @@ pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
 fn expand_columnar(args: AttributeArgs, mut st: DeriveInput) -> syn::Result<TokenStream> {
     check_derive_serde(&st)?;
     let field_args = attr::get_fields_add_serde_with_to_field(&mut st)?;
-    let derive_trait_tokens = process_derive_args(&args)?;
+    let derive_trait_tokens = process_derive_args(&args, &st, &field_args)?;
     let input = quote::quote!(#st);
-    let vec_ = generate_derive_vec_row_for_struct(&st, &field_args)?;
-    Ok(quote!(#input #derive_trait_tokens #vec_).into())
+    Ok(quote!(#input #derive_trait_tokens ).into())
 }
 
 fn check_derive_serde(st: &DeriveInput) -> syn::Result<()> {

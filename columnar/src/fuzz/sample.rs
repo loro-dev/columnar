@@ -1,7 +1,7 @@
 use serde::{ser::SerializeTuple, Deserialize, Deserializer, Serialize};
 use std::{borrow::Cow, collections::HashMap};
 
-use crate::{row::ColumnarVec, Column, ColumnAttr, MapRow, Strategy, VecRow};
+use crate::{Column, ColumnAttr, ColumnarVec, MapRow, Strategy, VecRow};
 
 type DeltaType = u32;
 
@@ -81,20 +81,21 @@ pub struct MapStore {
     pub data: HashMap<u64, Data>,
 }
 
-impl<'de> MapRow<'de> for Data {
+impl<'de, K, IT> MapRow<'de, K, IT> for Data
+where
+    for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c Self)>,
+    IT: FromIterator<(K, Self)> + Clone,
+    K: Serialize + Deserialize<'de> + Clone + Eq,
+{
     const FIELD_NUM: usize = 2;
-    type Key = u64;
-    fn serialize_columns<'c, S>(
-        rows: &'c HashMap<Self::Key, Self>,
-        ser: S,
-    ) -> Result<S::Ok, S::Error>
+    fn serialize_columns<'c, S>(rows: &'c IT, ser: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let (vec_k, (column1, column2)): (Vec<&Self::Key>, (Vec<DeltaType>, Vec<Cow<'c, str>>)) =
-            rows.iter()
-                .map(|(k, v)| (k, (v.id, Cow::from(&v.name))))
-                .unzip();
+        let (vec_k, (column1, column2)): (Vec<Cow<_>>, (Vec<Cow<_>>, Vec<Cow<_>>)) = rows
+            .into_iter()
+            .map(|(k, v)| (Cow::Borrowed(k), (Cow::Borrowed(&v.id), Cow::from(&v.name))))
+            .unzip();
         let column1 = Column::new(
             column1,
             ColumnAttr {
@@ -109,25 +110,25 @@ impl<'de> MapRow<'de> for Data {
                 strategy: None,
             },
         );
-        let mut ser_tuple = ser.serialize_tuple(1 + <Data as MapRow>::FIELD_NUM)?;
+        let mut ser_tuple = ser.serialize_tuple(1 + <Data as MapRow<K, IT>>::FIELD_NUM)?;
         ser_tuple.serialize_element(&vec_k)?;
         ser_tuple.serialize_element(&column1)?;
         ser_tuple.serialize_element(&column2)?;
         ser_tuple.end()
     }
 
-    fn deserialize_columns<D>(de: D) -> Result<HashMap<Self::Key, Self>, D::Error>
+    fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let (vec_k, column1, column2): (Vec<u64>, Column<DeltaType>, Column<Cow<str>>) =
+        let (vec_k, column1, column2): (Vec<K>, Column<Cow<DeltaType>>, Column<Cow<str>>) =
             Deserialize::deserialize(de)?;
         let ans: Vec<_> = column1
             .data
             .into_iter()
             .zip(column2.data.into_iter())
             .map(|(id, name)| Self {
-                id,
+                id: id.into_owned(),
                 name: name.into_owned(),
             })
             .collect();

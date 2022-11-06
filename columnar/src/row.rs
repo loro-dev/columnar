@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 
@@ -17,14 +17,18 @@ where
         D: serde::Deserializer<'de>;
 }
 
-pub trait MapRow<'de>: Sized {
+pub trait MapRow<'de, K, IT>: Sized
+where
+    for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c Self)>,
+    IT: FromIterator<(K, Self)> + Clone,
+    K: Serialize + Deserialize<'de> + Clone + Eq,
+{
     const FIELD_NUM: usize;
-    type Key: Serialize + Deserialize<'de>;
-    fn serialize_columns<S>(rows: &HashMap<Self::Key, Self>, ser: S) -> Result<S::Ok, S::Error>
+    fn serialize_columns<S>(rows: &IT, ser: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer;
 
-    fn deserialize_columns<D>(de: D) -> Result<HashMap<Self::Key, Self>, D::Error>
+    fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
     where
         D: serde::Deserializer<'de>;
 }
