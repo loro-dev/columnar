@@ -24,9 +24,16 @@ pub fn get_fields_add_serde_with_to_field(st: &mut DeriveInput) -> syn::Result<V
         }) => named,
         _ => return Err(syn::Error::new_spanned(st, "expected struct")),
     };
+    let mut index = 1usize;
     let mut fields_args = Vec::with_capacity(fields.len());
     for field in fields.iter() {
-        let field_args = FieldArgs::from_field(field)?;
+        let mut field_args = FieldArgs::from_field(field)?;
+        if let Some(_index) = field_args.index {
+            index = _index + 1;
+        } else {
+            field_args.index = Some(index);
+            index += 1;
+        }
         fields_args.push(field_args);
     }
     for (idx, field) in fields.iter_mut().enumerate() {

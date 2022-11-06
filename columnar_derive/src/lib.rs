@@ -21,7 +21,7 @@ use crate::derive::process_derive_args;
 #[proc_macro_attribute]
 pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
     let args: AttributeArgs = parse_macro_input!(attr as AttributeArgs);
-    let mut input = match add_consume_columnar_attribute(&input) {
+    let input = match add_consume_columnar_attribute(&input) {
         Ok(v) => v,
         Err(e) => return TokenStream::from(e.write_errors()),
     };
@@ -37,7 +37,7 @@ fn expand_columnar(args: AttributeArgs, mut st: DeriveInput) -> syn::Result<Toke
     let field_args = attr::get_fields_add_serde_with_to_field(&mut st)?;
     let derive_trait_tokens = process_derive_args(&args)?;
     let input = quote::quote!(#st);
-    let vec_ = generate_derive_vec_row_for_struct(&st)?;
+    let vec_ = generate_derive_vec_row_for_struct(&st, &field_args)?;
     Ok(quote!(#input #derive_trait_tokens #vec_).into())
 }
 

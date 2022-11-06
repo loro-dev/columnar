@@ -25,7 +25,7 @@ where
     for<'c> &'c IT: IntoIterator<Item = &'c Self>,
     IT: FromIterator<Self> + Clone,
 {
-    const FIELD_NUM: usize = 2;
+    const FIELD_NUM: usize = 2usize;
     fn serialize_columns<S>(rows: &IT, ser: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -59,14 +59,14 @@ where
     where
         D: Deserializer<'de>,
     {
-        let (column1, column2): (Column<DeltaType>, Column<Cow<str>>) =
+        let (column1, column2): (Column<Cow<DeltaType>>, Column<Cow<String>>) =
             Deserialize::deserialize(de)?;
         let ans = column1
             .data
             .into_iter()
             .zip(column2.data.into_iter())
             .map(|(id, name)| Self {
-                id,
+                id: id.into_owned(),
                 name: name.into_owned(),
             })
             .collect();
