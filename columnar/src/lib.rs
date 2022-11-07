@@ -15,8 +15,8 @@ mod serde_impl;
 
 pub use columnar_derive::*;
 
-#[cfg(feature = "fuzzing")]
-pub mod fuzz;
+#[cfg(feature = "bench")]
+extern crate lazy_static;
 
 pub fn to_vec<T: Serialize>(val: &T) -> Result<Vec<u8>, ColumnarError> {
     let mut encoder = ColumnarEncoder::new();
