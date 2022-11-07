@@ -15,6 +15,7 @@ impl<'a> DeltaRleEncoder<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn append(&mut self, value: i64) -> Result<(), ColumnarError> {
         let delta = value.saturating_sub(self.absolute_value);
         self.absolute_value = value;
@@ -95,6 +96,7 @@ impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn decode(&mut self) -> Result<Vec<i64>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {

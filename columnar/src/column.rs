@@ -11,13 +11,13 @@ use crate::{
     ColumnarDecoder, ColumnarError,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnAttr {
     pub index: usize,
     pub strategy: Option<Strategy>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Column<T: Clone> {
     pub data: Vec<T>,
     pub(crate) attr: ColumnAttr,
@@ -34,7 +34,7 @@ pub(crate) struct ColumnEncoder<T: Clone> {
     _c: PhantomData<Column<T>>,
 }
 
-impl<'c, T> ColumnEncoder<T>
+impl<T> ColumnEncoder<T>
 where
     T: Clone + Serialize + PartialEq,
 {
@@ -70,9 +70,9 @@ where
     }
 
     #[inline]
-    fn encode_rle(&mut self, column: &Vec<T>) -> Result<(), ColumnarError> {
+    fn encode_rle(&mut self, column: &[T]) -> Result<(), ColumnarError> {
         let mut rle_encoder = AnyRleEncoder::<T>::new(&mut self.ser);
-        for data in column.into_iter() {
+        for data in column.iter() {
             rle_encoder.append(data)?
         }
         rle_encoder.finish()?;
@@ -80,14 +80,14 @@ where
     }
 
     #[inline]
-    fn encode_bool_rle(&mut self, column: &Vec<T>) -> Result<(), ColumnarError> {
+    fn encode_bool_rle(&mut self, column: &[T]) -> Result<(), ColumnarError> {
         // if TypeId::of::<T>() != TypeId::of::<bool>() {
         //     return Err(ColumnarError::RleEncodeError("bool ".to_string()));
         // }
         let mut rle_encoder = BoolRleEncoder::new(&mut self.ser);
         // Safety: We know that T is bool
         unsafe {
-            for data in column.into_iter() {
+            for data in column.iter() {
                 let bool_data: &bool = std::mem::transmute_copy(&data);
                 rle_encoder.append(*bool_data)?
             }
@@ -97,9 +97,9 @@ where
     }
 
     #[inline]
-    fn encode_delta_rle(&mut self, column: &Vec<T>) -> Result<(), ColumnarError> {
+    fn encode_delta_rle(&mut self, column: &[T]) -> Result<(), ColumnarError> {
         let mut delta_rle = DeltaRleEncoder::new(&mut self.ser);
-        for data in column.into_iter() {
+        for data in column.iter() {
             unsafe { delta_rle.append_any(data)? }
         }
 
@@ -107,7 +107,7 @@ where
     }
 
     #[inline]
-    fn encode_no_strategy(&mut self, column: &Vec<T>) -> Result<(), ColumnarError> {
+    fn encode_no_strategy(&mut self, column: &[T]) -> Result<(), ColumnarError> {
         column.serialize(self.ser.deref_mut())?;
         Ok(())
     }

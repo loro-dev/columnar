@@ -17,7 +17,7 @@ where
     {
         let columnar = ColumnEncoder::new();
         let bytes = columnar
-            .encode(&self)
+            .encode(self)
             .map_err(|e| serde::ser::Error::custom(e.to_string()))?;
         serializer.serialize_bytes(bytes.as_slice())
     }

@@ -84,11 +84,7 @@ pub struct ColumnarEncoder {
 
 impl ColumnarEncoder {
     pub fn new() -> Self {
-        Self {
-            ser: Serializer {
-                output: AllocVec::new(),
-            },
-        }
+        Self::default()
     }
 
     pub fn into_bytes(self) -> Vec<u8> {
@@ -96,7 +92,17 @@ impl ColumnarEncoder {
     }
 }
 
-impl<'a> Deref for ColumnarEncoder {
+impl Default for ColumnarEncoder {
+    fn default() -> Self {
+        Self {
+            ser: Serializer {
+                output: AllocVec::new(),
+            },
+        }
+    }
+}
+
+impl Deref for ColumnarEncoder {
     type Target = Serializer<AllocVec>;
 
     fn deref(&self) -> &Self::Target {
