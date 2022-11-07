@@ -26,7 +26,7 @@ pub fn to_vec<T: Serialize>(val: &T) -> Result<Vec<u8>, ColumnarError> {
 }
 
 pub fn from_bytes<'de, 'a: 'de, T: Deserialize<'de>>(bytes: &'a [u8]) -> Result<T, ColumnarError> {
-    let mut decoder = ColumnarDecoder::<'de>::new(&bytes);
+    let mut decoder = ColumnarDecoder::<'de>::new(bytes);
     T::deserialize(decoder.deref_mut())
         .map_err(|e| ColumnarError::SerializeError(e as postcard::Error))
 }

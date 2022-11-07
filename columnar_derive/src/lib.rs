@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate darling;
 extern crate quote;
 
@@ -39,7 +38,8 @@ fn expand_columnar(args: AttributeArgs, mut st: DeriveInput) -> syn::Result<Toke
     Ok(quote!(#input #derive_trait_tokens ).into())
 }
 
-fn check_derive_serde(st: &DeriveInput) -> syn::Result<()> {
+#[allow(dead_code)]
+fn check_derive_serde(_: &DeriveInput) -> syn::Result<()> {
     // TODO: adjust this whether derive Serialize and Deserialize
     Ok(())
 }

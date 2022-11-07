@@ -5,7 +5,7 @@ pub(crate) use rle::{AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncode
 
 use crate::ColumnarError;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Strategy {
     Rle = 1,

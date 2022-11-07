@@ -182,15 +182,18 @@ where
                 return Ok(None);
             }
             let count = count.unwrap();
-            if count > 0 {
-                self.count = count;
-                self.last_value = Some(T::deserialize(self.de.deref_mut())?);
-                self.literal = false;
-            } else if count < 0 {
-                self.count = count.abs() as isize;
-                self.literal = true;
-            } else {
-                return Err(ColumnarError::RleDecodeError("Invalid count".to_string()));
+
+            match count {
+                n if n > 0 => {
+                    self.count = n;
+                    self.last_value = Some(T::deserialize(self.de.deref_mut())?);
+                    self.literal = false;
+                }
+                n if n < 0 => {
+                    self.count = n.abs() as isize;
+                    self.literal = true;
+                }
+                _ => return Err(ColumnarError::RleDecodeError("Invalid count".to_string())),
             }
         }
         self.count -= 1;
@@ -217,6 +220,7 @@ impl<'a, 'de> BoolRleDecoder<'a, 'de> {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn decode(&mut self) -> Result<Vec<bool>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
@@ -253,13 +257,10 @@ impl<'a, 'de> BoolRleDecoder<'a, 'de> {
 }
 
 mod test {
-    use crate::{
-        columnar::{ColumnarDecoder, ColumnarEncoder},
-        strategy::rle::{AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder},
-    };
 
     #[test]
     fn test_rle() {
+        use super::*;
         let mut columnar = ColumnarEncoder::new();
         let mut rle_encoder = AnyRleEncoder::<u64>::new(&mut columnar);
         rle_encoder.append(1000).unwrap();
@@ -268,15 +269,16 @@ mod test {
         rle_encoder.append(2).unwrap();
         rle_encoder.append(2).unwrap();
         rle_encoder.finish().unwrap();
-        let mut buf = columnar.into_bytes();
+        let buf = columnar.into_bytes();
         println!("buf {:?}", &buf);
-        let mut columnar_decoder = ColumnarDecoder::new(&mut buf);
+        let mut columnar_decoder = ColumnarDecoder::new(&buf);
         let mut rle_decoder = AnyRleDecoder::<u64>::new(&mut columnar_decoder);
         assert_eq!(rle_decoder.decode().unwrap(), vec![1000, 1000, 2, 2, 2]);
     }
 
     #[test]
     fn test_bool_rle() {
+        use super::*;
         let mut columnar = ColumnarEncoder::new();
         let mut rle_encoder = BoolRleEncoder::new(&mut columnar);
         rle_encoder.append(true).unwrap();

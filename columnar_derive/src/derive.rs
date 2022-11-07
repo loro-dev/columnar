@@ -1,6 +1,5 @@
 use darling::{Error as DarlingError, FromMeta};
-use proc_macro::TokenStream;
-use syn::{parse_macro_input, AttributeArgs, DeriveInput, ItemFn};
+use syn::{AttributeArgs, DeriveInput};
 
 use crate::attr::FieldArgs;
 
@@ -51,14 +50,14 @@ pub fn generate_derive_vec_row_for_struct(
     // generate ser columns
     let mut columns_quote = Vec::with_capacity(fields_len);
     for args in field_args {
-        let col = generate_per_field_to_column(&args)?;
+        let col = generate_per_field_to_column(args)?;
         columns_quote.push(col);
     }
     // generate ser
-    let ser_quote = encode_per_column_to_ser(&field_args)?;
+    let ser_quote = encode_per_column_to_ser(field_args)?;
 
     // generate de columns
-    let de_columns = generate_per_column_to_de_columns(&field_args)?;
+    let de_columns = generate_per_column_to_de_columns(field_args)?;
 
     let ret = quote::quote!(
         const _:()={
@@ -124,7 +123,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
 
 fn process_strategy(strategy: &Option<String>) -> syn::Result<proc_macro2::TokenStream> {
     if let Some(strategy) = strategy {
-        let strategy = syn::Ident::new(&strategy, proc_macro2::Span::call_site());
+        let strategy = syn::Ident::new(strategy, proc_macro2::Span::call_site());
         let ret = quote::quote!(
             std::option::Option::Some(
                 ::columnar::Strategy::#strategy
@@ -217,9 +216,9 @@ fn generate_derive_map_row_for_struct(
     let where_clause = add_map_it_clause_to_where(where_clause);
 
     // generate ser columns
-    let columns = generate_with_map_per_columns(&field_args)?;
-    let ser_quote = encode_map_per_column_to_ser(&field_args)?;
-    let de_columns = generate_map_per_column_to_de_columns(&field_args)?;
+    let columns = generate_with_map_per_columns(field_args)?;
+    let ser_quote = encode_map_per_column_to_ser(field_args)?;
+    let de_columns = generate_map_per_column_to_de_columns(field_args)?;
 
     let ret = quote::quote!(
         const _:()={

@@ -33,7 +33,7 @@ where
         D: serde::Deserializer<'de>;
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct ColumnarVec<'c, T: Clone>(pub Cow<'c, Vec<T>>);
 
 impl<'c, T> ColumnarVec<'c, T>
@@ -49,12 +49,12 @@ where
     }
 }
 
-impl<'c, T> Into<Vec<T>> for ColumnarVec<'c, T>
+impl<'c, T> From<ColumnarVec<'c, T>> for Vec<T>
 where
     T: VecRow<Vec<T>> + Clone,
 {
-    fn into(self) -> Vec<T> {
-        self.0.into_owned()
+    fn from(vec: ColumnarVec<'c, T>) -> Self {
+        vec.0.into_owned()
     }
 }
 
