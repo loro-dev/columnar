@@ -11,7 +11,6 @@ mod attr;
 mod derive;
 
 use darling::Error as DarlingError;
-use derive::generate_derive_vec_row_for_struct;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, AttributeArgs, DeriveInput, ItemStruct};
