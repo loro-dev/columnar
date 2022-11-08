@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{fmt::Debug, marker::PhantomData};
 
 use serde::{Deserialize, Serialize};
 
@@ -9,16 +9,17 @@ use crate::{
 
 impl<T> Serialize for Column<T>
 where
-    T: Clone + Serialize + PartialEq,
+    T: Clone + Serialize + PartialEq + Debug,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         let columnar = ColumnEncoder::new();
-        let bytes = columnar
-            .encode(self)
-            .map_err(|e| serde::ser::Error::custom(e.to_string()))?;
+        let bytes = columnar.encode(self).map_err(|e| {
+            println!("Column Serialize Error: {:?}", e);
+            serde::ser::Error::custom(e.to_string())
+        })?;
         serializer.serialize_bytes(bytes.as_slice())
     }
 }
@@ -45,9 +46,10 @@ where
                 E: serde::de::Error,
             {
                 let mut decoder = ColumnDecoder::new(bytes);
-                let column = decoder
-                    .decode()
-                    .map_err(|e| serde::de::Error::custom(e.to_string()))?;
+                let column = decoder.decode().map_err(|e| {
+                    println!("Column Deserialize Error: {:?}", e);
+                    serde::de::Error::custom(e.to_string())
+                })?;
                 Ok(column)
             }
         }

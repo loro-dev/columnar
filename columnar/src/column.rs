@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::{marker::PhantomData, ops::DerefMut};
 
 use serde::{Deserialize, Serialize, Serializer};
@@ -36,7 +37,7 @@ pub(crate) struct ColumnEncoder<T: Clone> {
 
 impl<T> ColumnEncoder<T>
 where
-    T: Clone + Serialize + PartialEq,
+    T: Clone + Serialize + PartialEq + Debug,
 {
     pub(crate) fn new() -> Self {
         Self {
@@ -81,9 +82,6 @@ where
 
     #[inline]
     fn encode_bool_rle(&mut self, column: &[T]) -> Result<(), ColumnarError> {
-        // if TypeId::of::<T>() != TypeId::of::<bool>() {
-        //     return Err(ColumnarError::RleEncodeError("bool ".to_string()));
-        // }
         let mut rle_encoder = BoolRleEncoder::new(&mut self.ser);
         // Safety: We know that T is bool
         unsafe {

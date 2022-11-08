@@ -28,7 +28,7 @@ lazy_static! {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Data {
     #[columnar(strategy = "Rle")]
-    id: u64,
+    id: u32,
     name: String,
 }
 
@@ -41,7 +41,7 @@ pub struct VecStore {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NormalData {
-    pub id: u64,
+    pub id: u32,
     pub name: String,
 }
 
