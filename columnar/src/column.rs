@@ -30,7 +30,7 @@ impl<T: Clone> Column<T> {
     }
 }
 
-pub(crate) struct ColumnEncoder<T: Clone> {
+pub struct ColumnEncoder<T: Clone> {
     ser: ColumnarEncoder,
     _c: PhantomData<Column<T>>,
 }
