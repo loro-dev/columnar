@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::{ColumnarDecoder, ColumnarEncoder, ColumnarError};
 
 use super::{AnyRleDecoder, AnyRleEncoder};
@@ -22,36 +24,10 @@ impl<'a> DeltaRleEncoder<'a> {
         self.rle.append(&delta)
     }
 
-    pub(crate) unsafe fn append_any<T>(&mut self, value: &T) -> Result<(), ColumnarError> {
-        // let value: i64 = if TypeId::of::<T>() == TypeId::of::<u8>() {
-        //     let t: u8 = std::mem::transmute_copy(value);
-        //     t as i64
-        // } else if TypeId::of::<T>() == TypeId::of::<u16>() {
-        //     let t: u16 = std::mem::transmute_copy(value);
-        //     t as i64
-        // } else if TypeId::of::<T>() == TypeId::of::<u32>() {
-        //     let t: u32 = std::mem::transmute_copy(value);
-        //     t as i64
-        // } else if TypeId::of::<T>() == TypeId::of::<u64>() {
-        //     let t: u64 = std::mem::transmute_copy(value);
-        //     t as i64
-        // } else if TypeId::of::<T>() == TypeId::of::<i8>() {
-        //     let t: i8 = std::mem::transmute_copy(value);
-        //     t as i64
-        // } else if TypeId::of::<T>() == TypeId::of::<i16>() {
-        //     let t: i16 = std::mem::transmute_copy(value);
-        //     t as i64
-        // } else if TypeId::of::<T>() == TypeId::of::<i32>() {
-        //     let t: i32 = std::mem::transmute_copy(value);
-        //     t as i64
-        // } else if TypeId::of::<T>() == TypeId::of::<i64>() {
-        //     let t: i64 = std::mem::transmute_copy(value);
-        //     t as i64
-        // } else {
-        //     return Err(ColumnarError::RleEncodeError(
-        //         "only num type can be encoded by delta encoder".to_string(),
-        //     ));
-        // };
+    /// #Safety:
+    ///
+    /// when T is u8, u16, u32, usize, i8, i16, i32, isize, `append_any` is safe
+    pub(crate) unsafe fn append_any<T: Debug>(&mut self, value: &T) -> Result<(), ColumnarError> {
         let padding = std::mem::size_of::<i64>() / std::mem::size_of::<T>();
         let value = match padding {
             1 => std::mem::transmute_copy(value),

@@ -1,5 +1,5 @@
 use arbitrary::Arbitrary;
-use columnar::{columnar, VecRow, Column, ColumnAttr, ColumnarVec, Strategy};
+use columnar::{columnar, Column, ColumnAttr, ColumnarVec, Strategy, VecRow};
 use serde::{ser::SerializeTuple, Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize, Arbitrary, PartialEq)]
 pub struct Data {
     #[columnar(strategy = "Rle")]
-    id: u64,
+    id: u32,
     name: String,
 }
 

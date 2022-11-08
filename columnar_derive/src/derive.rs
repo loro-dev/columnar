@@ -46,6 +46,7 @@ pub fn generate_derive_vec_row_for_struct(
     let generics_params_to_modify = input.generics.clone();
     let (impl_generics, ty_generics, where_clause) = generics_params_to_modify.split_for_impl();
     let where_clause = add_it_clause_to_where(where_clause);
+    // FIXME: add <IT> to impl_generics
 
     // generate ser columns
     let mut columns_quote = Vec::with_capacity(fields_len);
@@ -98,6 +99,7 @@ fn add_it_clause_to_where(where_clause: Option<&syn::WhereClause>) -> syn::Where
 }
 
 fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro2::TokenStream> {
+    // FIXME: use field name as column name
     let field_name = &field_arg.ident;
     // let field_type = &field_arg.ty;
     let strategy = process_strategy(&field_arg.strategy)?;
@@ -122,6 +124,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
 }
 
 fn process_strategy(strategy: &Option<String>) -> syn::Result<proc_macro2::TokenStream> {
+    // TODO: check strategy is valid
     if let Some(strategy) = strategy {
         let strategy = syn::Ident::new(strategy, proc_macro2::Span::call_site());
         let ret = quote::quote!(

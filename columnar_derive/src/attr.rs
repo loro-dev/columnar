@@ -9,6 +9,7 @@ pub struct FieldArgs {
     pub vis: syn::Visibility,
     pub ty: syn::Type,
     pub attrs: Vec<syn::Attribute>,
+    // custom attributes
     pub index: Option<usize>,
     pub strategy: Option<String>,
     #[darling(rename = "type")]

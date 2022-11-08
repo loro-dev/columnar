@@ -98,7 +98,7 @@ fn expand_columnar(args: AttributeArgs, mut st: DeriveInput) -> syn::Result<Toke
 
     let derive_trait_tokens = process_derive_args(&args, &st, &field_args)?;
     let input = quote::quote!(#st);
-    Ok(quote!(#input #derive_trait_tokens ).into())
+    Ok(quote!(#input #derive_trait_tokens).into())
 }
 
 /// The struct annotated with `columnar` *MUST* be derived with `Serialize` and `Deserialize` trait.
