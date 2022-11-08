@@ -5,8 +5,8 @@ use crate::{ColumnarDecoder, ColumnarEncoder, ColumnarError};
 use super::{AnyRleDecoder, AnyRleEncoder};
 
 pub(crate) struct DeltaRleEncoder<'a> {
-    rle: AnyRleEncoder<'a, i64>,
-    absolute_value: i64,
+    rle: AnyRleEncoder<'a, i128>,
+    absolute_value: i128,
 }
 
 impl<'a> DeltaRleEncoder<'a> {
@@ -18,7 +18,7 @@ impl<'a> DeltaRleEncoder<'a> {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn append(&mut self, value: i64) -> Result<(), ColumnarError> {
+    pub(crate) fn append(&mut self, value: i128) -> Result<(), ColumnarError> {
         let delta = value.saturating_sub(self.absolute_value);
         self.absolute_value = value;
         self.rle.append(&delta)
@@ -26,22 +26,26 @@ impl<'a> DeltaRleEncoder<'a> {
 
     /// #Safety:
     ///
-    /// when T is u8, u16, u32, usize, i8, i16, i32, isize, `append_any` is safe
+    /// when T is u8, u16, u32, ,u64, usize, i8, i16, i32, i64, isize, `append_any` is safe
     pub(crate) unsafe fn append_any<T: Debug>(&mut self, value: &T) -> Result<(), ColumnarError> {
-        let padding = std::mem::size_of::<i64>() / std::mem::size_of::<T>();
+        let padding = std::mem::size_of::<i128>() / std::mem::size_of::<T>();
         let value = match padding {
             1 => std::mem::transmute_copy(value),
             2 => {
-                let value: u32 = std::mem::transmute_copy(value);
-                value as i64
+                let value: u64 = std::mem::transmute_copy(value);
+                value as i128
             }
             4 => {
-                let value: u16 = std::mem::transmute_copy(value);
-                value as i64
+                let value: u32 = std::mem::transmute_copy(value);
+                value as i128
             }
             8 => {
+                let value: u16 = std::mem::transmute_copy(value);
+                value as i128
+            }
+            16 => {
                 let value: u8 = std::mem::transmute_copy(value);
-                value as i64
+                value as i128
             }
             _ => {
                 return Err(ColumnarError::RleEncodeError(
@@ -60,8 +64,8 @@ impl<'a> DeltaRleEncoder<'a> {
 }
 
 pub(crate) struct DeltaRleDecoder<'a, 'de> {
-    rle: AnyRleDecoder<'a, 'de, i64>,
-    absolute_value: i64,
+    rle: AnyRleDecoder<'a, 'de, i128>,
+    absolute_value: i128,
 }
 
 impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
@@ -73,7 +77,7 @@ impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn decode(&mut self) -> Result<Vec<i64>, ColumnarError> {
+    pub(crate) fn decode(&mut self) -> Result<Vec<i128>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
             values.push(value);
@@ -111,7 +115,7 @@ impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
         Ok(values)
     }
 
-    fn try_next(&mut self) -> Result<Option<i64>, ColumnarError> {
+    fn try_next(&mut self) -> Result<Option<i128>, ColumnarError> {
         if let Some(delta) = self.rle.try_next()? {
             self.absolute_value = self.absolute_value.saturating_add(delta);
             Ok(Some(self.absolute_value))
