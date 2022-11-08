@@ -24,11 +24,13 @@ lazy_static! {
     };
 }
 
+type ID = u64;
+
 #[columnar(vec)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Data {
-    #[columnar(strategy = "Rle")]
-    id: u32,
+    #[columnar(strategy = "DeltaRle", original_type = "u64")]
+    id: ID,
     name: String,
 }
 

@@ -17,7 +17,7 @@ pub struct VecStore {
     #[columnar(type = "vec")]
     data: Vec<Data>,
     #[columnar(strategy = "DeltaRle")]
-    id: u8,
+    id: u64,
 }
 
 #[columnar]
@@ -47,7 +47,7 @@ where
     where
         S: serde::Serializer,
     {
-        let (column1, column2): (Vec<ColumnarVec<Data>>, Vec<u8>) = rows
+        let (column1, column2): (Vec<ColumnarVec<Data>>, Vec<u64>) = rows
             .into_iter()
             .map(|row| (ColumnarVec::from_borrowed(&row.data), row.id))
             .unzip();
@@ -75,7 +75,7 @@ where
     where
         D: serde::Deserializer<'de>,
     {
-        let (column1, column2): (Column<ColumnarVec<Data>>, Column<u8>) =
+        let (column1, column2): (Column<ColumnarVec<Data>>, Column<u64>) =
             Deserialize::deserialize(de)?;
         let ans = column1
             .data

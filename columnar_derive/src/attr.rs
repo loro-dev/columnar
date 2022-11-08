@@ -12,9 +12,10 @@ pub struct FieldArgs {
     // custom attributes
     pub index: Option<usize>,
     pub strategy: Option<String>,
+    pub item: Option<syn::Type>,
+    pub original_type: Option<syn::Type>,
     #[darling(rename = "type")]
     pub _type: Option<String>,
-    pub item: Option<syn::Type>,
 }
 
 pub fn get_fields_add_serde_with_to_field(st: &mut DeriveInput) -> syn::Result<Vec<FieldArgs>> {
