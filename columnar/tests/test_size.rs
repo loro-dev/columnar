@@ -1,6 +1,6 @@
-use columnar::columnar;
+use columnar::{columnar, Column, ColumnAttr, ColumnarVec, VecRow};
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeTuple, Deserialize, Serialize};
 lazy_static! {
     static ref STORE: VecStore = {
         let mut _data = Vec::new();
@@ -10,17 +10,17 @@ lazy_static! {
                 name: format!("name{}", i),
             });
         }
-        VecStore { data: _data }
+        VecStore { data: _data, id: 0 }
     };
     static ref NORMAL_STORE: NormalStore = {
         let mut _data = Vec::new();
         for i in 0..10000 {
-            _data.push(NormalData {
+            _data.push(NormalData { 
                 id: i / 50,
                 name: format!("name{}", i),
             });
         }
-        NormalStore { data: _data }
+        NormalStore { data: _data, id: 0 }
     };
 }
 
@@ -34,11 +34,12 @@ pub struct Data {
     name: String,
 }
 
-#[columnar]
+#[columnar(vec)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VecStore {
     #[columnar(type = "vec")]
     pub data: Vec<Data>,
+    pub id: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -50,6 +51,14 @@ pub struct NormalData {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NormalStore {
     pub data: Vec<NormalData>,
+    pub id: u32,
+}
+
+#[columnar]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NestedStore {
+    #[columnar(type = "vec")]
+    stores: Vec<VecStore>,
 }
 
 #[test]
