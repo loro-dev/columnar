@@ -11,19 +11,19 @@ pub struct DeriveArgs {
     hashmap: bool,
 }
 
-fn get_type_literal_by_syn_type(ty: &syn::Type) -> syn::Result<String> {
+fn get_without_generic_type_literal_by_syn_type(ty: &syn::Type) -> syn::Result<Option<String>> {
     let mut type_literal = String::new();
     match ty {
         syn::Type::Path(syn::TypePath { path, .. }) => {
             if let Some(ident) = path.get_ident() {
                 type_literal.push_str(&ident.to_string());
             } else {
-                return Err(syn::Error::new_spanned(ty, "expected ident"));
+                return Ok(None);
             }
         }
-        _ => return Err(syn::Error::new_spanned(ty, "unsupported type")),
+        _ => return Ok(None),
     }
-    Ok(type_literal)
+    Ok(Some(type_literal))
 }
 
 fn is_field_type_is_num(field_arg: &FieldArgs) -> syn::Result<bool> {
@@ -145,9 +145,9 @@ fn add_it_clause_to_where(where_clause: Option<&syn::WhereClause>) -> syn::Where
 }
 
 fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro2::TokenStream> {
-    // FIXME: use field name as column name
     let field_name = &field_arg.ident;
     let field_type = &field_arg.ty;
+    let field_attr_ty = &field_arg._type;
     let ori_ty = &field_arg.original_type;
     let strategy = process_strategy(&field_arg.strategy, field_type, ori_ty)?;
     let index_num = field_arg.index.unwrap();
@@ -157,6 +157,8 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     );
     let row_content = if is_field_type_is_num(field_arg)? {
         quote::quote!(row.#field_name)
+    } else if field_attr_ty.is_some() {
+        quote::quote!(ColumnarVec::<_, #field_type>::new(&row.#field_name))
     } else {
         quote::quote!(std::borrow::Cow::Borrowed(&row.#field_name))
     };
@@ -181,12 +183,16 @@ fn process_strategy(
     ori_ty: &Option<syn::Type>,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let valid_strategy = vec!["Rle", "BoolRle", "DeltaRle"];
-    let _ty = get_type_literal_by_syn_type(ty)?;
+    let _ty = get_without_generic_type_literal_by_syn_type(ty)?;
     if let Some(strategy) = strategy {
         if strategy == "BoolRle" {
-            if (ori_ty.is_none()) && _ty != "bool"
+            if (ori_ty.is_none()) && (_ty.is_none() || _ty.unwrap() != "bool")
                 || (ori_ty.is_some()
-                    && "bool".eq(get_type_literal_by_syn_type(&ori_ty.clone().unwrap())?.as_str()))
+                    && "bool".eq(get_without_generic_type_literal_by_syn_type(
+                        &ori_ty.clone().unwrap(),
+                    )?
+                    .unwrap_or_else(|| "".to_string())
+                    .as_str()))
             {
                 return Err(syn::Error::new_spanned(
                     ty,
@@ -197,10 +203,13 @@ fn process_strategy(
             let valid_types = vec![
                 "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize", "isize",
             ];
-            if (ori_ty.is_none() && !valid_types.contains(&_ty.as_str()))
+            if (ori_ty.is_none()
+                && !valid_types.contains(&_ty.unwrap_or_else(|| "".to_string()).as_str()))
                 || (ori_ty.is_some()
                     && !valid_types.contains(
-                        &get_type_literal_by_syn_type(&ori_ty.clone().unwrap())?.as_str(),
+                        &get_without_generic_type_literal_by_syn_type(&ori_ty.clone().unwrap())?
+                            .unwrap_or_else(|| "".to_string())
+                            .as_str(),
                     ))
             {
                 return Err(syn::Error::new_spanned(
@@ -262,6 +271,7 @@ fn generate_per_column_to_de_columns(
     let mut field_names_build = Vec::with_capacity(field_len);
     for (idx, args) in field_args.iter().enumerate() {
         let field_name = &args.ident;
+        let field_attr_ty = &args._type;
         let index = args.index.unwrap();
         let column_index =
             syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
@@ -270,6 +280,8 @@ fn generate_per_column_to_de_columns(
         let is_num = is_field_type_is_num(args)?;
         let row_content = if is_num {
             quote::quote!(::columnar::Column<#field_type>)
+        } else if field_attr_ty.is_some() {
+            quote::quote!(::columnar::Column<ColumnarVec<_, #field_type>>)
         } else {
             quote::quote!(::columnar::Column<::std::borrow::Cow<#field_type>>)
         };
@@ -290,6 +302,8 @@ fn generate_per_column_to_de_columns(
             quote::quote!(
                 #field_name: #field_name
             )
+        } else if field_attr_ty.is_some() {
+            quote::quote!(#field_name: #field_name.into_vec())
         } else {
             quote::quote!(
                 #field_name: #field_name.into_owned()

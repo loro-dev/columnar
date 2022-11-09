@@ -1,12 +1,12 @@
 //! ## Container
-//! 
-//! - `#[columnar]` 
+//!
+//! - `#[columnar]`
 //! - `#[columnar(vec, map)]` means the struct can be a rle row inside [Vec] or [HashMap]
 //!
 //! ## Field Attributes
 //!
-//! - `#[columnar(index = 1|2|3...)]`: the id of the field; TODO: 
-//! - `#[columnar(type = "vec"|"map")]`: 
+//! - `#[columnar(index = 1|2|3...)]`: the id of the field; TODO:
+//! - `#[columnar(type = "vec"|"map")]`:
 //!   - vec means the decorated field T is a container, holds Value and satisfies `&T: IntoIter<Item=&Value>` `T: FromIterator<Value>`
 //!   - map means the decorated field T is a container, holds Value and satisfies `&T: IntoIter<Item=(&K, &Value)>` `T: FromIterator<(K, Value)>`
 //! - `#[columnar(strategy = "Rle"|"BooleanRle"|"DeltaRle")]`: You can only choose one from the three
@@ -24,12 +24,13 @@ pub use column::{Column, ColumnAttr};
 mod columnar;
 pub use columnar::{ColumnarDecoder, ColumnarEncoder};
 mod row;
-pub use row::{ColumnarVec, MapRow, VecRow};
+pub use row::{MapRow, VecRow};
 mod strategy;
+mod wrap;
 use serde::{Deserialize, Serialize};
 pub use strategy::Strategy;
+pub use wrap::ColumnarVec;
 mod serde_impl;
-
 
 pub use columnar_derive::*;
 
