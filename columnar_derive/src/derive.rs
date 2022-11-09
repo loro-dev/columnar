@@ -157,8 +157,10 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     );
     let row_content = if is_field_type_is_num(field_arg)? {
         quote::quote!(row.#field_name)
-    } else if field_attr_ty.is_some() {
-        quote::quote!(ColumnarVec::<_, #field_type>::new(&row.#field_name))
+    } else if field_attr_ty.is_some()
+        && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "vec"
+    {
+        quote::quote!(::columnar::ColumnarVec::<_, #field_type>::new(&row.#field_name))
     } else {
         quote::quote!(std::borrow::Cow::Borrowed(&row.#field_name))
     };
@@ -280,7 +282,9 @@ fn generate_per_column_to_de_columns(
         let is_num = is_field_type_is_num(args)?;
         let row_content = if is_num {
             quote::quote!(::columnar::Column<#field_type>)
-        } else if field_attr_ty.is_some() {
+        } else if field_attr_ty.is_some()
+            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "vec"
+        {
             quote::quote!(::columnar::Column<ColumnarVec<_, #field_type>>)
         } else {
             quote::quote!(::columnar::Column<::std::borrow::Cow<#field_type>>)
@@ -302,7 +306,9 @@ fn generate_per_column_to_de_columns(
             quote::quote!(
                 #field_name: #field_name
             )
-        } else if field_attr_ty.is_some() {
+        } else if field_attr_ty.is_some()
+            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "vec"
+        {
             quote::quote!(#field_name: #field_name.into_vec())
         } else {
             quote::quote!(
@@ -396,8 +402,9 @@ fn generate_with_map_per_columns(
 
     for args in field_args.iter() {
         // TODO: no named struct
-        let name = &args.ident;
+        let field_name = &args.ident;
         let field_type = &args.ty;
+        let field_attr_ty = &args._type;
         let ori_ty = &args.original_type;
         let strategy = process_strategy(&args.strategy, field_type, ori_ty)?;
         let index = args.index.unwrap();
@@ -405,16 +412,25 @@ fn generate_with_map_per_columns(
         let column_index =
             syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
         columns_quote.push(quote::quote!(#column_index));
-        let columns_type = if is_field_type_is_num(args)? {
-            quote::quote!(::std::vec::Vec<_>)
-        } else {
-            quote::quote!(::std::vec::Vec<::std::borrow::Cow<_>>)
-        };
+        let columns_type = quote::quote!(::std::vec::Vec<_>); //if is_field_type_is_num(args)? {
+                                                              //     quote::quote!(::std::vec::Vec<_>)
+                                                              // }
+                                                              // else if field_attr_ty.is_some() {
+                                                              //     quote::quote!(::columnar::ColumnarMap::<_, _, #field_type>::new(&row.#field_name))
+                                                              // }
+                                                              // else {
+                                                              //     quote::quote!(::std::vec::Vec<::std::borrow::Cow<_>>)
+                                                              // };
         columns_types.push(columns_type);
         let cow_columns_field = if is_field_type_is_num(args)? {
-            quote::quote!(v.#name)
+            quote::quote!(v.#field_name)
+        } else if field_attr_ty.is_some()
+            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "map"
+        {
+            // wrap
+            quote::quote!(::columnar::ColumnarMap::<_, _, #field_type>::new(&v.#field_name))
         } else {
-            quote::quote!(::std::borrow::Cow::Borrowed(&v.#name))
+            quote::quote!(::std::borrow::Cow::Borrowed(&v.#field_name))
         };
         cow_columns_fields.push(cow_columns_field);
 
@@ -475,25 +491,34 @@ fn generate_map_per_column_to_de_columns(
     let mut into_iter_quote = Vec::with_capacity(field_len);
     for (idx, args) in field_args.iter().enumerate() {
         // TODO: no named struct
-        let name = &args.ident;
+        let field_name = &args.ident;
+        let field_type = &args.ty;
+        let field_attr_ty = &args._type;
         let index = args.index.unwrap();
         let column_index =
             syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
         columns_quote.push(quote::quote!(#column_index));
-        field_names.push(quote::quote!(#name));
-        let field_type = &args.ty;
+        field_names.push(quote::quote!(#field_name));
         let is_num = is_field_type_is_num(args)?;
         let column_type = if is_num {
             quote::quote!(::columnar::Column<#field_type>)
+        } else if field_attr_ty.is_some()
+            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "map"
+        {
+            quote::quote!(::columnar::Column<::columnar::ColumnarMap<_,_,#field_type>>)
         } else {
             quote::quote!(::columnar::Column<::std::borrow::Cow<#field_type>>)
         };
         columns_types.push(column_type);
 
         let field_name_build = if is_num {
-            quote::quote!(#name: #name)
+            quote::quote!(#field_name: #field_name)
+        } else if field_attr_ty.is_some()
+            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "map"
+        {
+            quote::quote!(#field_name: #field_name.into_map())
         } else {
-            quote::quote!(#name: #name.into_owned())
+            quote::quote!(#field_name: #field_name.into_owned())
         };
         field_names_build.push(field_name_build);
 

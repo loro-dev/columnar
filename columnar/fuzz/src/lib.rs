@@ -11,7 +11,7 @@ pub struct Data {
     name: String,
 }
 
-#[columnar(vec)]
+#[columnar(vec, map)]
 #[derive(Debug, Clone, Serialize, Deserialize, Arbitrary, PartialEq)]
 pub struct VecStore {
     #[columnar(type = "vec")]
@@ -33,4 +33,6 @@ pub struct MapStore {
 pub struct NestedStore {
     #[columnar(type = "vec")]
     stores: Vec<VecStore>,
+    #[columnar(type = "map")]
+    map_stores: HashMap<u64, VecStore>,
 }

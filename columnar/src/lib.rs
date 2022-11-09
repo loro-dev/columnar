@@ -29,7 +29,7 @@ mod strategy;
 mod wrap;
 use serde::{Deserialize, Serialize};
 pub use strategy::Strategy;
-pub use wrap::ColumnarVec;
+pub use wrap::{ColumnarMap, ColumnarVec};
 mod serde_impl;
 
 pub use columnar_derive::*;

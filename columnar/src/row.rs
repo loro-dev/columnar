@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use serde::{Deserialize, Serialize};
 
 /// If a type implements this [`VecRow`] trait, it can be considered as a row of vec-like container.
@@ -93,4 +91,3 @@ where
     where
         D: serde::Deserializer<'de>;
 }
-
