@@ -1,6 +1,8 @@
-use columnar::{columnar, Column, ColumnAttr, ColumnarVec, VecRow};
+use std::collections::HashMap;
+
+use columnar::{columnar, ColumnarVec};
 use lazy_static::lazy_static;
-use serde::{ser::SerializeTuple, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 lazy_static! {
     static ref STORE: VecStore = {
         let mut _data = Vec::new();
@@ -15,7 +17,7 @@ lazy_static! {
     static ref NORMAL_STORE: NormalStore = {
         let mut _data = Vec::new();
         for i in 0..10000 {
-            _data.push(NormalData { 
+            _data.push(NormalData {
                 id: i / 50,
                 name: format!("name{}", i),
             });
@@ -34,7 +36,7 @@ pub struct Data {
     name: String,
 }
 
-#[columnar(vec)]
+#[columnar(vec, map)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VecStore {
     #[columnar(type = "vec")]
@@ -55,10 +57,12 @@ pub struct NormalStore {
 }
 
 #[columnar]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NestedStore {
     #[columnar(type = "vec")]
     stores: Vec<VecStore>,
+    #[columnar(type = "map")]
+    map_stores: HashMap<u64, VecStore>,
 }
 
 #[test]

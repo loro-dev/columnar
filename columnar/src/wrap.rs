@@ -1,8 +1,8 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, marker::PhantomData};
 
 use serde::{Deserialize, Serialize};
 
-use crate::VecRow;
+use crate::{MapRow, VecRow};
 
 #[derive(Debug, PartialEq, Clone, Eq)]
 pub struct ColumnarVec<'c, T, IT>(pub Cow<'c, IT>)
@@ -75,5 +75,64 @@ where
         Ok(ColumnarVec(Cow::Owned(T::deserialize_columns(
             deserializer,
         )?)))
+    }
+}
+
+// MapRow
+
+#[derive(Debug, PartialEq, Clone, Eq)]
+pub struct ColumnarMap<'de, 'c, K, T, IT>(pub Cow<'c, IT>, PhantomData<&'de ()>)
+where
+    T: MapRow<'de, K, IT> + Clone,
+    for<'a> &'a IT: IntoIterator<Item = (&'a K, &'a T)>,
+    IT: FromIterator<(K, T)> + Clone,
+    K: Serialize + Deserialize<'de> + Clone + Eq;
+
+impl<'de, 'c, K, T, IT> ColumnarMap<'de, 'c, K, T, IT>
+where
+    T: MapRow<'de, K, IT> + Clone,
+    for<'a> &'a IT: IntoIterator<Item = (&'a K, &'a T)>,
+    IT: FromIterator<(K, T)> + Clone,
+    K: Serialize + Deserialize<'de> + Clone + Eq,
+{
+    pub fn new(map: &'c IT) -> Self {
+        Self(Cow::Borrowed(map), PhantomData)
+    }
+
+    pub fn into_map(self) -> IT {
+        self.0.into_owned()
+    }
+}
+
+impl<'de, 'c, K, T, IT> Serialize for ColumnarMap<'de, 'c, K, T, IT>
+where
+    T: MapRow<'de, K, IT> + Clone,
+    for<'a> &'a IT: IntoIterator<Item = (&'a K, &'a T)>,
+    IT: FromIterator<(K, T)> + Clone,
+    K: Serialize + Deserialize<'de> + Clone + Eq,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        T::serialize_columns(&self.0, serializer)
+    }
+}
+
+impl<'de, 'c, K, T, IT> Deserialize<'de> for ColumnarMap<'de, 'c, K, T, IT>
+where
+    T: MapRow<'de, K, IT> + Clone,
+    for<'a> &'a IT: IntoIterator<Item = (&'a K, &'a T)>,
+    IT: FromIterator<(K, T)> + Clone,
+    K: Serialize + Deserialize<'de> + Clone + Eq,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(ColumnarMap(
+            Cow::Owned(T::deserialize_columns(deserializer)?),
+            PhantomData,
+        ))
     }
 }
