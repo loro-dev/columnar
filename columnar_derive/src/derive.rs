@@ -1,7 +1,6 @@
+use crate::attr::FieldArgs;
 use darling::{Error as DarlingError, FromMeta};
 use syn::{AttributeArgs, DeriveInput};
-
-use crate::attr::FieldArgs;
 
 #[derive(Debug, FromMeta)]
 pub struct DeriveArgs {
@@ -271,7 +270,7 @@ fn generate_per_column_to_de_columns(
     let mut into_iter_quote = Vec::with_capacity(field_len);
     let mut field_names = Vec::with_capacity(field_len);
     let mut field_names_build = Vec::with_capacity(field_len);
-    for (idx, args) in field_args.iter().enumerate() {
+    for (_, args) in field_args.iter().enumerate() {
         let field_name = &args.ident;
         let field_attr_ty = &args._type;
         let index = args.index.unwrap();
@@ -290,15 +289,9 @@ fn generate_per_column_to_de_columns(
             quote::quote!(::columnar::Column<::std::borrow::Cow<#field_type>>)
         };
         columns_types.push(row_content);
-        let into_element = if idx == 0 {
-            quote::quote!(
-                #column_index.data.into_iter()
-            )
-        } else {
-            quote::quote!(
-                .zip(#column_index.data.into_iter())
-            )
-        };
+        let into_element = quote::quote!(
+            #column_index.data.into_iter()
+        );
         into_iter_quote.push(into_element);
 
         field_names.push(field_name);
@@ -322,7 +315,7 @@ fn generate_per_column_to_de_columns(
     // generate
     let ret = quote::quote!(
         let (#(#columns_quote),*):(#(#columns_types),*) = serde::de::Deserialize::deserialize(de)?;
-        let ans = #(#into_iter_quote)*
+        let ans = ::columnar::izip!(#(#into_iter_quote),*)
                     .map(|(#(#field_names),*)| Self{
                         #(#field_names_build),*
                     }).collect();
@@ -489,7 +482,7 @@ fn generate_map_per_column_to_de_columns(
     let mut field_names = Vec::with_capacity(field_len);
     let mut field_names_build = Vec::with_capacity(field_len);
     let mut into_iter_quote = Vec::with_capacity(field_len);
-    for (idx, args) in field_args.iter().enumerate() {
+    for (_, args) in field_args.iter().enumerate() {
         // TODO: no named struct
         let field_name = &args.ident;
         let field_type = &args.ty;
@@ -522,22 +515,16 @@ fn generate_map_per_column_to_de_columns(
         };
         field_names_build.push(field_name_build);
 
-        let into_element = if idx == 0 {
-            quote::quote!(
-                #column_index.data.into_iter()
-            )
-        } else {
-            quote::quote!(
-                .zip(#column_index.data.into_iter())
-            )
-        };
+        let into_element = quote::quote!(
+            #column_index.data.into_iter()
+        );
         into_iter_quote.push(into_element);
     }
 
     let ret = quote::quote!(
         let (vec_k, (#(#columns_quote),*)): (::std::vec::Vec<_>, (#(#columns_types),*)) =
             ::serde::de::Deserialize::deserialize(de)?;
-        let ans: ::std::vec::Vec<_> = #(#into_iter_quote)*
+        let ans: ::std::vec::Vec<_> = ::columnar::izip!(#(#into_iter_quote),*)
             .map(|(#(#field_names),*)| Self{
                 #(#field_names_build),*
             }).collect();
