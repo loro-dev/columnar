@@ -86,10 +86,16 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     );
     let row_content = if is_field_type_is_num(field_arg)? {
         quote::quote!(row.#field_name)
-    } else if field_attr_ty.is_some()
-        && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "vec"
-    {
-        quote::quote!(::columnar::ColumnarVec::<_, #field_type>::new(&row.#field_name))
+    } else if field_attr_ty.is_some() {
+        match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
+            "vec" => {
+                quote::quote!(::columnar::ColumnarVec::<_, #field_type>::new(&row.#field_name))
+            }
+            "map" => {
+                quote::quote!(::columnar::ColumnarMap<_, _, #field_type>::new(&row.#field_name))
+            }
+            _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
+        }
     } else {
         quote::quote!(std::borrow::Cow::Borrowed(&row.#field_name))
     };
@@ -182,10 +188,16 @@ fn generate_per_column_to_de_columns(
         let is_num = is_field_type_is_num(args)?;
         let row_content = if is_num {
             quote::quote!(::columnar::Column<#field_type>)
-        } else if field_attr_ty.is_some()
-            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "vec"
-        {
-            quote::quote!(::columnar::Column<::columnar::ColumnarVec<_, #field_type>>)
+        } else if field_attr_ty.is_some() {
+            match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
+                "vec" => {
+                    quote::quote!(::columnar::Column<::columnar::ColumnarVec<_, #field_type>>)
+                }
+                "map" => {
+                    quote::quote!(::columnar::Column<::columnar::ColumnarMap<_, _, #field_type>>)
+                }
+                _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
+            }
         } else {
             quote::quote!(::columnar::Column<::std::borrow::Cow<#field_type>>)
         };
@@ -200,10 +212,16 @@ fn generate_per_column_to_de_columns(
             quote::quote!(
                 #field_name: #field_name
             )
-        } else if field_attr_ty.is_some()
-            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "vec"
-        {
-            quote::quote!(#field_name: #field_name.into_vec())
+        } else if field_attr_ty.is_some() {
+            match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
+                "vec" => {
+                    quote::quote!(#field_name: #field_name.into_vec())
+                }
+                "map" => {
+                    quote::quote!(#field_name: #field_name.into_map())
+                }
+                _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
+            }
         } else {
             quote::quote!(
                 #field_name: #field_name.into_owned()
