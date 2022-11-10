@@ -1,9 +1,9 @@
 use arbitrary::Arbitrary;
-use columnar::{columnar, Column, ColumnAttr, ColumnarVec, Strategy, VecRow};
+use columnar::columnar;
 use serde::{ser::SerializeTuple, Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[columnar(vec, map)]
+#[columnar(vec, map, ser, de)]
 #[derive(Debug, Clone, Serialize, Deserialize, Arbitrary, PartialEq)]
 pub struct Data {
     #[columnar(strategy = "Rle")]
@@ -11,7 +11,7 @@ pub struct Data {
     name: String,
 }
 
-#[columnar(vec, map)]
+#[columnar(vec, map, ser, de)]
 #[derive(Debug, Clone, Serialize, Deserialize, Arbitrary, PartialEq)]
 pub struct VecStore {
     #[columnar(type = "vec")]

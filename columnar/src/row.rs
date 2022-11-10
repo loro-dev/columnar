@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// If a type implements this [`VecRow`] trait, it can be considered as a row of vec-like container.
+/// If a type implements [`RowSer`] and [`RowDe`] trait, it can be considered as a row of vec-like container.
 ///
 /// this trait can **be easily derived** by adding `#[columnar(vec)]` to the struct.
 ///
@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 /// | 3  | "Mark" |
 ///
 /// In the columnar system, we want to store the data by [Column-oriented Storage](https://en.wikipedia.org/wiki/Column-oriented_DBMS),
-/// so we can implement the [`VecRow`] trait for `Data`, and [`VecRow`] trait will provide two functions
+/// so we can implement the [`RowSer`] and [`RowDe`] trait for `Data`, they will provide two functions
 ///
 /// -  [`serialize_columns()`]
 /// -  [`deserialize_columns()`]
@@ -49,43 +49,56 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Note:
 ///
-/// [`VecRow`] trait has a generic type `IT`, which could be any container that can be IntoIterator<Item = &Self>
+/// [`RowSer`] trait has a generic type `IT`, which could be any container that can be IntoIterator<Item = &Self>
 /// and FromIterator<Self>, such as Vec<T>, SmallVec<T> and so on.
 ///
-/// [`serialize_columns()`]: VecRow::serialize_columns()
-/// [`deserialize_columns()`]: VecRow::deserialize_columns()
+/// [`serialize_columns()`]: RowSer::serialize_columns()
+/// [`deserialize_columns()`]: RowDe::deserialize_columns()
 /// [`Column`]: crate::column::Column
 /// [`DeltaRle`]: crate::strategy::DeltaRleEncoder
 /// [`ColumnEncoder`]: crate::column::ColumnEncoder
-pub trait VecRow<IT>: Sized
+pub trait RowSer<IT>: Sized + Serialize
 where
     for<'c> &'c IT: IntoIterator<Item = &'c Self>,
-    IT: FromIterator<Self> + Clone,
 {
     const FIELD_NUM: usize;
     fn serialize_columns<S>(rows: &IT, ser: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer;
+}
 
-    fn deserialize_columns<'de, D>(de: D) -> Result<IT, D::Error>
+pub trait RowDe<'de, IT>: Sized + Deserialize<'de>
+where
+    IT: FromIterator<Self> + Clone,
+{
+    const FIELD_NUM: usize;
+
+    fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
     where
         D: serde::Deserializer<'de>;
 }
 
-/// The **HashMap** version of [`VecRow`] trait.
+/// The **HashMap** version of [`KeyRowSer`] trait.
 ///
-/// Almost the same as [`VecRow`], but additionally needs to handle arbitrary type K to Vec<K>.
+/// Almost the same as [`KeyRowSer`], but additionally needs to convert arbitrary type K to Vec<K>.
 ///
-pub trait MapRow<'de, K, IT>: Sized
+pub trait KeyRowSer<K, IT>: Sized + Serialize
 where
     for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c Self)>,
-    IT: FromIterator<(K, Self)> + Clone,
-    K: Serialize + Deserialize<'de> + Clone + Eq,
+    K: Serialize + Eq + Clone,
 {
     const FIELD_NUM: usize;
     fn serialize_columns<S>(rows: &IT, ser: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer;
+}
+
+pub trait KeyRowDe<'de, K, IT>: Sized + Deserialize<'de>
+where
+    IT: FromIterator<(K, Self)> + Clone,
+    K: Deserialize<'de> + Eq + Clone,
+{
+    const FIELD_NUM: usize;
 
     fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
     where
