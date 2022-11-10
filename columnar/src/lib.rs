@@ -24,7 +24,7 @@ pub use column::{Column, ColumnAttr};
 mod columnar;
 pub use columnar::{ColumnarDecoder, ColumnarEncoder};
 mod row;
-pub use row::{MapRow, VecRow};
+pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 mod strategy;
 mod wrap;
 use serde::{Deserialize, Serialize};

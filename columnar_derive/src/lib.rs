@@ -13,13 +13,15 @@ extern crate proc_macro;
 extern crate proc_macro2;
 
 use darling::Error as DarlingError;
+use derive::process_derive_args;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, AttributeArgs, DeriveInput, ItemStruct};
 
+mod args;
+use args::{get_derive_args, get_field_args_add_serde_with_to_field};
 mod attr;
 mod derive;
-use crate::derive::process_derive_args;
 
 ///
 /// Convenience macro to use the [`columnar`] system.
@@ -92,11 +94,13 @@ pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
 ///
 fn expand_columnar(args: AttributeArgs, mut st: DeriveInput) -> syn::Result<TokenStream> {
     check_derive_serde(&st)?;
+    let derive_args = get_derive_args(args)?;
     // iterate all fields to check if there is any `columnar` attribute
     // and parse all fields' `columnar` attributes to [`FieldArgs`].
-    let field_args = attr::get_fields_add_serde_with_to_field(&mut st)?;
+    // add [`serde_with`] attributes to the fields.
+    let field_args = get_field_args_add_serde_with_to_field(&mut st, &derive_args)?;
 
-    let derive_trait_tokens = process_derive_args(&args, &st, &field_args)?;
+    let derive_trait_tokens = process_derive_args(&derive_args, &st, &field_args)?;
     let input = quote::quote!(#st);
     Ok(quote!(#input #derive_trait_tokens).into())
 }

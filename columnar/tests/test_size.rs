@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use columnar::{columnar, ColumnarVec};
+use columnar::columnar;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 lazy_static! {
@@ -28,7 +28,7 @@ lazy_static! {
 
 type ID = u64;
 
-#[columnar(vec)]
+#[columnar(vec, ser, de)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Data {
     #[columnar(strategy = "DeltaRle", original_type = "u64")]
@@ -36,7 +36,7 @@ pub struct Data {
     name: String,
 }
 
-#[columnar(vec, map)]
+#[columnar(vec, map, ser, de)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VecStore {
     #[columnar(type = "vec")]
