@@ -23,6 +23,7 @@ pub fn generate_derive_hashmap_row_ser(
     let ret = quote::quote!(
         const _:()={
         use serde::ser::SerializeTuple;
+        use columnar::MultiUnzip;
         #[automatically_derived]
         impl #impl_generics ::columnar::KeyRowSer<K, IT> for #struct_name_ident #ty_generics #where_clause {
             const FIELD_NUM: usize = #fields_len;
@@ -130,11 +131,16 @@ fn generate_with_map_per_columns(
         columns_types.push(columns_type);
         let cow_columns_field = if is_field_type_is_num(args)? {
             quote::quote!(v.#field_name)
-        } else if field_attr_ty.is_some()
-            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "map"
-        {
-            // wrap
-            quote::quote!(::columnar::ColumnarMap::<_, _, #field_type>::new(&v.#field_name))
+        } else if field_attr_ty.is_some() {
+            match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
+                "vec" => {
+                    quote::quote!(::columnar::ColumnarVec::<_, #field_type>::new(&v.#field_name))
+                }
+                "map" => {
+                    quote::quote!(::columnar::ColumnarMap<_, _, #field_type>::new(&v.#field_name))
+                }
+                _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
+            }
         } else {
             quote::quote!(::std::borrow::Cow::Borrowed(&v.#field_name))
         };
@@ -153,10 +159,10 @@ fn generate_with_map_per_columns(
     }
 
     let mut ret = quote::quote!(
-        let (vec_k, (#(#columns_quote),*)): (::std::vec::Vec<_>, (#(#columns_types),*)) = rows
+        let (vec_k, #(#columns_quote),*): (::std::vec::Vec<_>, #(#columns_types),*) = rows
         .into_iter()
-        .map(|(k, v)| (::std::borrow::Cow::Borrowed(k), (#(#cow_columns_fields),*)))
-        .unzip();
+        .map(|(k, v)| (::std::borrow::Cow::Borrowed(k), #(#cow_columns_fields),*))
+        .multiunzip();
     );
     ret.extend(real_columns);
     Ok(ret)
@@ -208,10 +214,16 @@ fn generate_map_per_column_to_de_columns(
         let is_num = is_field_type_is_num(args)?;
         let column_type = if is_num {
             quote::quote!(::columnar::Column<#field_type>)
-        } else if field_attr_ty.is_some()
-            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "map"
-        {
-            quote::quote!(::columnar::Column<::columnar::ColumnarMap<_,_,#field_type>>)
+        } else if field_attr_ty.is_some() {
+            match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
+                "vec" => {
+                    quote::quote!(::columnar::Column<::columnar::ColumnarVec<_, #field_type>>)
+                }
+                "map" => {
+                    quote::quote!(::columnar::Column<::columnar::ColumnarMap<_, _, #field_type>>)
+                }
+                _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
+            }
         } else {
             quote::quote!(::columnar::Column<::std::borrow::Cow<#field_type>>)
         };
@@ -219,10 +231,16 @@ fn generate_map_per_column_to_de_columns(
 
         let field_name_build = if is_num {
             quote::quote!(#field_name: #field_name)
-        } else if field_attr_ty.is_some()
-            && field_attr_ty.as_ref().map(|f| f.as_str()).unwrap() == "map"
-        {
-            quote::quote!(#field_name: #field_name.into_map())
+        } else if field_attr_ty.is_some() {
+            match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
+                "vec" => {
+                    quote::quote!(#field_name: #field_name.into_vec())
+                }
+                "map" => {
+                    quote::quote!(#field_name: #field_name.into_map())
+                }
+                _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
+            }
         } else {
             quote::quote!(#field_name: #field_name.into_owned())
         };

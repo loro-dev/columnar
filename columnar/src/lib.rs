@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 pub use strategy::Strategy;
 pub use wrap::{ColumnarMap, ColumnarVec};
 mod serde_impl;
-pub use itertools::izip;
+pub use itertools::{izip, MultiUnzip};
 
 pub use columnar_derive::*;
 
