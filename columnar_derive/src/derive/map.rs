@@ -253,7 +253,7 @@ fn generate_map_per_column_to_de_columns(
     }
 
     let ret = quote::quote!(
-        let (vec_k, (#(#columns_quote),*)): (::std::vec::Vec<_>, (#(#columns_types),*)) =
+        let (vec_k, #(#columns_quote),*): (::std::vec::Vec<_>, #(#columns_types),*) =
             ::serde::de::Deserialize::deserialize(de)?;
         let ans: ::std::vec::Vec<_> = ::columnar::izip!(#(#into_iter_quote),*)
             .map(|(#(#field_names),*)| Self{
