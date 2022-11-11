@@ -1,6 +1,6 @@
 //! ## Container
 //!
-//! - `#[columnar]`
+//! - `#[columnar]` means that some fields (marked by `#[columnar(type = "vec"|"map")]`) of this structure can be serialized and deserialized by columnar encoding
 //! - `#[columnar(vec, map)]` means the struct can be a rle row inside [Vec] or [HashMap]
 //!
 //! ## Field Attributes
@@ -22,7 +22,7 @@ pub use err::ColumnarError;
 mod column;
 pub use column::{Column, ColumnAttr};
 mod columnar;
-pub use columnar::{ColumnarDecoder, ColumnarEncoder};
+pub use crate::columnar::{ColumnarDecoder, ColumnarEncoder};
 mod row;
 pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 mod strategy;

@@ -22,19 +22,19 @@ pub fn generate_derive_hashmap_row_ser(
 
     let ret = quote::quote!(
         const _:()={
-        use serde::ser::SerializeTuple;
-        use columnar::MultiUnzip;
-        #[automatically_derived]
-        impl #impl_generics ::columnar::KeyRowSer<K, IT> for #struct_name_ident #ty_generics #where_clause {
-            const FIELD_NUM: usize = #fields_len;
-            fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
-            where
-                S: serde::Serializer,
-            {
-                #columns
-                #ser_quote
+            use serde::ser::SerializeTuple;
+            use columnar::MultiUnzip;
+            #[automatically_derived]
+            impl #impl_generics ::columnar::KeyRowSer<K, IT> for #struct_name_ident #ty_generics #where_clause {
+                const FIELD_NUM: usize = #fields_len;
+                fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
+                where
+                    S: serde::Serializer,
+                {
+                    #columns
+                    #ser_quote
+                }
             }
-         }
         };
     );
     Ok(ret)
@@ -55,15 +55,15 @@ pub fn generate_derive_hashmap_row_de(
 
     let ret = quote::quote!(
         const _:()={
-        use serde::ser::SerializeTuple;
-        #[automatically_derived]
-        impl #impl_generics ::columnar::KeyRowDe<'de, K, IT> for #struct_name_ident #ty_generics #where_clause {
-            const FIELD_NUM: usize = #fields_len;
-            fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
-            where D: serde::Deserializer<'de>{
-                #de_columns
+            use serde::ser::SerializeTuple;
+            #[automatically_derived]
+            impl #impl_generics ::columnar::KeyRowDe<'de, K, IT> for #struct_name_ident #ty_generics #where_clause {
+                const FIELD_NUM: usize = #fields_len;
+                fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
+                where D: serde::Deserializer<'de>{
+                    #de_columns
+                }
             }
-         }
         };
     );
     Ok(ret)
@@ -116,7 +116,9 @@ fn generate_with_map_per_columns(
     let mut real_columns = Vec::with_capacity(field_args.len());
 
     for args in field_args.iter() {
-        // TODO: no named struct
+        if args.skip {
+            continue;
+        }
         let field_name = &args.ident;
         let field_type = &args.ty;
         let field_attr_ty = &args._type;
@@ -171,10 +173,14 @@ fn generate_with_map_per_columns(
 fn encode_map_per_column_to_ser(
     field_args: &Vec<FieldArgs>,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let field_len = field_args.len();
-    let indexes = field_args.iter().map(|args| args.index.unwrap());
+    let mut field_len = field_args.len();
     let mut ser_elements = Vec::with_capacity(field_len);
-    for index in indexes {
+    for args in field_args {
+        if args.skip {
+            field_len -= 1;
+            continue;
+        }
+        let index = args.index.unwrap();
         let column_index =
             syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
         let ser_element = quote::quote!(
@@ -202,8 +208,12 @@ fn generate_map_per_column_to_de_columns(
     let mut field_names_build = Vec::with_capacity(field_len);
     let mut into_iter_quote = Vec::with_capacity(field_len);
     for (_, args) in field_args.iter().enumerate() {
-        // TODO: no named struct
         let field_name = &args.ident;
+        // TODO: no named struct
+        if args.skip {
+            field_names_build.push(quote::quote!(#field_name: ::std::default::Default::default()));
+            continue;
+        }
         let field_type = &args.ty;
         let field_attr_ty = &args._type;
         let index = args.index.unwrap();

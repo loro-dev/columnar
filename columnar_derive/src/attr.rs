@@ -2,6 +2,16 @@ use syn::{parse_quote, Field};
 
 use crate::args::{DeriveArgs, FieldArgs};
 
+pub fn add_serde_skip(field: &mut Field, args: &FieldArgs) -> syn::Result<()> {
+    if args.skip {
+        let attr = parse_quote! {
+            #[serde(skip)]
+        };
+        field.attrs.push(attr);
+    }
+    Ok(())
+}
+
 pub fn add_serde_with(
     field: &mut Field,
     args: &FieldArgs,

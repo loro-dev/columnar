@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// For example, there is a struct `Data` has two fields `id` and `name`.
 ///
-/// ```rust
+/// ```rust ignore
 /// #[columnar(vec)]
 /// struct Data {
 ///     #[columnar(index = 1, strategy = "DeltaRle")]

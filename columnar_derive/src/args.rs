@@ -1,7 +1,7 @@
 use darling::{Error as DarlingError, FromField, FromMeta};
 use syn::{AttributeArgs, DeriveInput};
 
-use crate::attr::add_serde_with;
+use crate::attr::{add_serde_skip, add_serde_with};
 
 #[derive(Debug, FromMeta)]
 pub struct DeriveArgs {
@@ -32,6 +32,9 @@ pub struct FieldArgs {
     /// the type of the column format, vec or map.
     #[darling(rename = "type")]
     pub _type: Option<String>,
+    /// If skip, this field will be ignored.
+    #[darling(default)]
+    pub skip: bool,
 }
 
 pub fn get_derive_args(args: AttributeArgs) -> syn::Result<DeriveArgs> {
@@ -67,6 +70,11 @@ pub fn get_field_args_add_serde_with_to_field(
     let mut fields_args = Vec::with_capacity(fields.len());
     for field in fields.iter_mut() {
         let mut field_args = FieldArgs::from_field(field)?;
+        add_serde_skip(field, &field_args)?;
+        if field_args.skip {
+            fields_args.push(field_args);
+            continue;
+        }
         add_serde_with(field, &field_args, derive_args)?;
         if let Some(_index) = field_args.index {
             index = _index + 1;
