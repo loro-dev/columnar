@@ -10,12 +10,12 @@ criterion = "0.4"
 serde_json = "1.0"
 
 [dependencies]
-serde = { version = "1.0"}
-postcard = {version="1.0", features=["alloc"]}
+serde = { version = "1.0" }
+postcard = { version = "1.0", features = ["alloc"] }
 thiserror = "1.0"
 columnar_derive = { path = "../columnar_derive" }
-lazy_static = {version = "1.4", optional = true}
-bincode = {version="1.3.3", optional = true}
+lazy_static = { version = "1.4", optional = true }
+bincode = { version = "1.3.3", optional = true }
 itertools = "0.10.5"
 
 [[bench]]
@@ -25,3 +25,6 @@ harness = false
 [features]
 default = ["bench"]
 bench = ["lazy_static", "bincode"]
+
+[lib]
+doctest = false

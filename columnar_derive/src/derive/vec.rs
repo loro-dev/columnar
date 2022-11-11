@@ -74,6 +74,9 @@ fn process_vec_generics<'a>(
 }
 
 fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro2::TokenStream> {
+    if field_arg.skip {
+        return Ok(quote::quote! {});
+    }
     let field_name = &field_arg.ident;
     let field_type = &field_arg.ty;
     let field_attr_ty = &field_arg._type;
@@ -115,10 +118,14 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
 }
 
 fn encode_per_column_to_ser(field_args: &Vec<FieldArgs>) -> syn::Result<proc_macro2::TokenStream> {
-    let field_len = field_args.len();
-    let indexes = field_args.iter().map(|args| args.index.unwrap());
+    let mut field_len = field_args.len();
     let mut ser_elements = Vec::with_capacity(field_len);
-    for index in indexes {
+    for field_arg in field_args.iter() {
+        if field_arg.skip {
+            field_len -= 1;
+            continue;
+        }
+        let index = field_arg.index.unwrap();
         let column_index =
             syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
         let ser_element = quote::quote!(
@@ -179,6 +186,12 @@ fn generate_per_column_to_de_columns(
     let mut field_names_build = Vec::with_capacity(field_len);
     for (_, args) in field_args.iter().enumerate() {
         let field_name = &args.ident;
+        if args.skip {
+            field_names_build.push(quote::quote!(
+                #field_name: ::std::default::Default::default()
+            ));
+            continue;
+        }
         let field_attr_ty = &args._type;
         let index = args.index.unwrap();
         let column_index =
