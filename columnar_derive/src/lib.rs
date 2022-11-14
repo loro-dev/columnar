@@ -12,11 +12,11 @@ extern crate syn;
 extern crate proc_macro;
 extern crate proc_macro2;
 
-use darling::Error as DarlingError;
 use derive::process_derive_args;
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_macro_input, AttributeArgs, DeriveInput, ItemStruct};
+use syn::{parse_macro_input, AttributeArgs, DeriveInput, Item};
 
 mod args;
 use args::{get_derive_args, get_field_args_add_serde_with_to_field};
@@ -77,7 +77,7 @@ pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
     let args: AttributeArgs = parse_macro_input!(attr as AttributeArgs);
     let input = match add_consume_columnar_attribute(&input) {
         Ok(v) => v,
-        Err(e) => return TokenStream::from(e.write_errors()),
+        Err(e) => return TokenStream::from(e.to_compile_error()),
     };
     let st = parse_macro_input!(input as DeriveInput);
     match expand_columnar(args, st) {
@@ -99,10 +99,14 @@ fn expand_columnar(args: AttributeArgs, mut st: DeriveInput) -> syn::Result<Toke
     // and parse all fields' `columnar` attributes to [`FieldArgs`].
     // add [`serde_with`] attributes to the fields.
     let field_args = get_field_args_add_serde_with_to_field(&mut st, &derive_args)?;
-
-    let derive_trait_tokens = process_derive_args(&derive_args, &st, &field_args)?;
     let input = quote::quote!(#st);
-    Ok(quote!(#input #derive_trait_tokens).into())
+    if let Some(field_args) = field_args {
+        let derive_trait_tokens = process_derive_args(&derive_args, &st, &field_args)?;
+        Ok(quote!(#input #derive_trait_tokens).into())
+    } else {
+        // enum 情况
+        Ok(input.into())
+    }
 }
 
 /// The struct annotated with `columnar` *MUST* be derived with `Serialize` and `Deserialize` trait.
@@ -125,16 +129,26 @@ fn check_derive_serde(_: &DeriveInput) -> syn::Result<()> {
 /// struct Data{...}
 /// ```
 ///
-fn add_consume_columnar_attribute(input: &TokenStream) -> Result<TokenStream, DarlingError> {
+fn add_consume_columnar_attribute(input: &TokenStream) -> syn::Result<TokenStream> {
     let consume_columnar_attribute = syn::parse_quote!(
         #[derive(::columnar::__private_consume_columnar_attributes)]
     );
-    if let Ok(mut input) = syn::parse::<ItemStruct>(input.clone()) {
-        input.attrs.push(consume_columnar_attribute);
-        Ok(quote!(#input).into())
-    } else {
-        // TODO: add support for enums
-        Err(DarlingError::unsupported_shape("expected struct"))
+    let item: Item = syn::parse(input.clone()).unwrap();
+    match item {
+        Item::Struct(st) => {
+            let mut st = st;
+            st.attrs.push(consume_columnar_attribute);
+            Ok(quote!(#st).into())
+        }
+        Item::Enum(en) => {
+            let mut en = en;
+            en.attrs.push(consume_columnar_attribute);
+            Ok(quote!(#en).into())
+        }
+        _ => Err(syn::Error::new(
+            Span::call_site(),
+            "columnar only support struct and enum",
+        )),
     }
 }
 
