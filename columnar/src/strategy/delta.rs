@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use crate::{ColumnarDecoder, ColumnarEncoder, ColumnarError};
 
 use super::{AnyRleDecoder, AnyRleEncoder};
@@ -27,7 +25,7 @@ impl<'a> DeltaRleEncoder<'a> {
     /// #Safety:
     ///
     /// when T is u8, u16, u32, ,u64, usize, i8, i16, i32, i64, isize, `append_any` is safe
-    pub(crate) unsafe fn append_any<T: Debug>(&mut self, value: &T) -> Result<(), ColumnarError> {
+    pub(crate) unsafe fn append_any<T>(&mut self, value: &T) -> Result<(), ColumnarError> {
         let padding = std::mem::size_of::<i128>() / std::mem::size_of::<T>();
         let value = match padding {
             1 => std::mem::transmute_copy(value),

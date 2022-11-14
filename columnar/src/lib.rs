@@ -34,6 +34,7 @@ mod serde_impl;
 pub use itertools::{izip, MultiUnzip};
 
 pub use columnar_derive::*;
+pub use postcard::Error as PostcardError;
 
 #[cfg(feature = "bench")]
 extern crate lazy_static;

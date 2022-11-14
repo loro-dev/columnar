@@ -12,13 +12,13 @@ use crate::{
     ColumnarDecoder, ColumnarError,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ColumnAttr {
     pub index: usize,
     pub strategy: Option<Strategy>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Column<T: Clone> {
     pub data: Vec<T>,
     pub(crate) attr: ColumnAttr,
@@ -37,7 +37,7 @@ pub struct ColumnEncoder<T: Clone> {
 
 impl<T> ColumnEncoder<T>
 where
-    T: Clone + Serialize + PartialEq + Debug,
+    T: Clone + Serialize + PartialEq,
 {
     pub(crate) fn new() -> Self {
         Self {
