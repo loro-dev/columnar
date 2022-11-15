@@ -1,7 +1,9 @@
-use darling::{Error as DarlingError, FromField, FromMeta, FromVariant};
+use darling::{util::Override, Error as DarlingError, FromField, FromMeta, FromVariant};
+use proc_macro2::Span;
 use syn::{AttributeArgs, DeriveInput};
 
 use crate::attr::{add_serde_skip, add_serde_with};
+const DEFAULT_COMPRESS_THRESHOLD: usize = 256;
 
 #[derive(Debug, FromMeta)]
 pub struct DeriveArgs {
@@ -13,6 +15,15 @@ pub struct DeriveArgs {
     pub(crate) ser: bool,
     #[darling(default)]
     pub(crate) de: bool,
+}
+
+#[derive(FromMeta, Debug, Clone)]
+pub struct CompressArgs {
+    pub min_size: Option<usize>,
+    // 0~9
+    pub level: Option<u32>,
+    // "best"(9), "fast"(1), "default"(6)
+    pub method: Option<String>,
 }
 
 #[derive(FromField, Debug)]
@@ -35,6 +46,7 @@ pub struct FieldArgs {
     /// If skip, this field will be ignored.
     #[darling(default)]
     pub skip: bool,
+    pub compress: Option<Override<CompressArgs>>,
 }
 
 #[derive(FromVariant, Debug)]
@@ -74,6 +86,39 @@ pub trait Args {
     fn original_type(&self) -> Option<syn::Type>;
     fn _type(&self) -> Option<AsType>;
     fn skip(&self) -> bool;
+    fn compress(&self) -> Option<Override<CompressArgs>>;
+    fn compress_args(&self) -> syn::Result<proc_macro2::TokenStream> {
+        if let Some(compress) = self.compress() {
+            match compress {
+                Override::Explicit(compress) => {
+                    if compress.level.is_some() && compress.method.is_some() {
+                        return Err(syn::Error::new(
+                            Span::call_site(),
+                            "columnar only support struct and enum",
+                        ));
+                    }
+                    let threshold = compress.min_size.unwrap_or(DEFAULT_COMPRESS_THRESHOLD);
+                    if compress.level.is_some() {
+                        let level = compress.level.unwrap();
+                        Ok(quote::quote! {
+                            Some(::columnar::CompressConfig::from_level(#threshold, #level))
+                        })
+                    } else {
+                        let method = compress.method.unwrap();
+                        // TODO: check method is best fast default
+                        Ok(quote::quote! {
+                            Some(::columnar::CompressConfig::from_method(#threshold, #method.to_string()))
+                        })
+                    }
+                }
+                Override::Inherit => {
+                    Ok(quote::quote! { Some(::columnar::CompressConfig::default()) })
+                }
+            }
+        } else {
+            Ok(quote::quote!(None))
+        }
+    }
 }
 
 impl Args for FieldArgs {
@@ -106,6 +151,10 @@ impl Args for FieldArgs {
     fn skip(&self) -> bool {
         self.skip
     }
+
+    fn compress(&self) -> Option<Override<CompressArgs>> {
+        self.compress.clone()
+    }
 }
 
 impl Args for VariantArgs {
@@ -137,6 +186,10 @@ impl Args for VariantArgs {
     }
     fn skip(&self) -> bool {
         self.skip
+    }
+
+    fn compress(&self) -> Option<Override<CompressArgs>> {
+        todo!()
     }
 }
 

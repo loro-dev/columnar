@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     column::{ColumnDecoder, ColumnEncoder},
+    compress::decompress,
     Column,
 };
 
@@ -20,13 +21,13 @@ where
             println!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
-        serializer.serialize_bytes(bytes.as_slice())
+        serializer.serialize_bytes(&bytes)
     }
 }
 
 impl<'de, T> Deserialize<'de> for Column<T>
 where
-    T: Clone + PartialEq + Deserialize<'de>,
+    T: Clone + PartialEq + for<'d> Deserialize<'d>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -35,7 +36,7 @@ where
         pub struct ColumnVisitor<T>(PhantomData<T>);
         impl<'de, T> serde::de::Visitor<'de> for ColumnVisitor<T>
         where
-            T: Clone + PartialEq + Deserialize<'de>,
+            T: Clone + PartialEq + for<'d> Deserialize<'d>,
         {
             type Value = Column<T>;
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -45,11 +46,24 @@ where
             where
                 E: serde::de::Error,
             {
-                let mut decoder = ColumnDecoder::new(bytes);
-                let column = decoder.decode().map_err(|e| {
-                    println!("Column Deserialize Error: {:?}", e);
-                    serde::de::Error::custom(e.to_string())
-                })?;
+                let compress_flag = bytes[0];
+                let column = if compress_flag == 1 {
+                    let buf = decompress(&bytes[1..]).map_err(|e| {
+                        println!("Column Decompress Error: {:?}", e);
+                        serde::de::Error::custom(e.to_string())
+                    })?;
+                    let mut decoder = ColumnDecoder::new(&buf);
+                    decoder.decode().map_err(|e| {
+                        println!("Column Deserialize Error: {:?}", e);
+                        serde::de::Error::custom(e.to_string())
+                    })?
+                } else {
+                    let mut decoder = ColumnDecoder::new(&bytes[1..]);
+                    decoder.decode().map_err(|e| {
+                        println!("Column Deserialize Error: {:?}", e);
+                        serde::de::Error::custom(e.to_string())
+                    })?
+                };
                 Ok(column)
             }
         }

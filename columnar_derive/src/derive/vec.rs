@@ -1,4 +1,4 @@
-use crate::args::FieldArgs;
+use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
@@ -87,6 +87,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
         &format!("column{}", index_num),
         proc_macro2::Span::call_site(),
     );
+    let compress_quote = field_arg.compress_args()?;
     let row_content = if is_field_type_is_num(field_arg)? {
         quote::quote!(row.#field_name)
     } else if field_attr_ty.is_some() {
@@ -111,6 +112,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
             ::columnar::ColumnAttr{
                 index: #index_num,
                 strategy: #strategy,
+                compress: #compress_quote,
             }
         );
     );
