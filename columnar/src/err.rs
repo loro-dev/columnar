@@ -1,3 +1,5 @@
+use std::io;
+
 use postcard::Error as PostcardError;
 use thiserror::Error;
 
@@ -13,6 +15,8 @@ pub enum ColumnarError {
     RleDecodeError(String),
     #[error("invalid strategy code `{0}`")]
     InvalidStrategy(u8),
+    #[error("io error")]
+    IOError(#[from] io::Error),
     #[error("unknown data store error")]
     Unknown,
 }

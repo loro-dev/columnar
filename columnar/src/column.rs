@@ -3,6 +3,7 @@ use std::{marker::PhantomData, ops::DerefMut};
 
 use serde::{Deserialize, Serialize, Serializer};
 
+use crate::compress::{compress, CompressConfig};
 use crate::{
     columnar::ColumnarEncoder,
     strategy::{
@@ -16,6 +17,7 @@ use crate::{
 pub struct ColumnAttr {
     pub index: usize,
     pub strategy: Option<Strategy>,
+    pub compress: Option<CompressConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,7 +56,24 @@ where
             Some(Strategy::DeltaRle) => self.encode_delta_rle(&column.data)?,
             None => self.encode_no_strategy(&column.data)?,
         };
-        Ok(self.ser.into_bytes())
+        let mut ans = self.ser.into_bytes();
+        ans = Self::compress(ans, column)?;
+        Ok(ans)
+    }
+
+    fn compress(mut buf: Vec<u8>, column: &Column<T>) -> Result<Vec<u8>, ColumnarError> {
+        match column.attr.compress {
+            Some(ref config) => {
+                if buf.len() > config.threshold {
+                    buf = compress(&buf, config)?;
+                    buf.insert(0, 1);
+                } else {
+                    buf.insert(0, 0);
+                }
+            }
+            None => buf.insert(0, 0),
+        }
+        Ok(buf)
     }
 
     fn serialize_strategy(&mut self, strategy: &Option<Strategy>) -> Result<(), ColumnarError> {
@@ -111,21 +130,21 @@ where
     }
 }
 
-pub(crate) struct ColumnDecoder<'de, T: Clone> {
-    de: ColumnarDecoder<'de>,
+pub(crate) struct ColumnDecoder<'cd, T: Clone> {
+    de: ColumnarDecoder<'cd>,
     _c: PhantomData<Column<T>>,
-    lifetime: PhantomData<&'de ()>,
+    // lifetime: PhantomData<&'de ()>,
 }
 
-impl<'de, T> ColumnDecoder<'de, T>
+impl<'cd, T> ColumnDecoder<'cd, T>
 where
-    T: Clone + Deserialize<'de> + PartialEq,
+    T: Clone + for<'d> Deserialize<'d> + PartialEq,
 {
-    pub(crate) fn new(bytes: &'de [u8]) -> Self {
+    pub(crate) fn new<'b: 'cd>(bytes: &'b [u8]) -> Self {
         Self {
             de: ColumnarDecoder::new(bytes),
             _c: PhantomData,
-            lifetime: PhantomData,
+            // lifetime: PhantomData,
         }
     }
 
@@ -146,7 +165,14 @@ where
             Some(Strategy::DeltaRle) => self.decode_delta_rle(),
             None => self.decode_no_strategy(),
         };
-        Ok(Column::new(vec_data?, ColumnAttr { index: 0, strategy }))
+        Ok(Column::new(
+            vec_data?,
+            ColumnAttr {
+                index: 0,
+                strategy: None,
+                compress: None,
+            },
+        ))
     }
 
     fn decode_rle(&mut self) -> Result<Vec<T>, ColumnarError> {

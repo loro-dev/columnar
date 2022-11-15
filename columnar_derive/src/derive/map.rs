@@ -1,4 +1,4 @@
-use crate::args::FieldArgs;
+use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
@@ -123,6 +123,7 @@ fn generate_with_map_per_columns(
         let field_type = &args.ty;
         let field_attr_ty = &args._type;
         let ori_ty = &args.original_type;
+        let compress_quote = &args.compress_args()?;
         let strategy = process_strategy(&args.strategy, field_type, ori_ty)?;
         let index = args.index.unwrap();
         let index_num = syn::LitInt::new(&index.to_string(), proc_macro2::Span::call_site());
@@ -155,6 +156,7 @@ fn generate_with_map_per_columns(
                 ::columnar::ColumnAttr{
                     index: #index_num,
                     strategy: #strategy,
+                    compress: #compress_quote,
                 }
             );
         ));
