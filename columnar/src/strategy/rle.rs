@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use std::{borrow::Borrow, marker::PhantomData, ops::DerefMut};
 
+use super::MAX_RLE_COUNT;
+
 pub struct BoolRleEncoder<'a> {
     ser: &'a mut ColumnarEncoder,
     last: bool,
@@ -182,7 +184,13 @@ where
                 return Ok(None);
             }
             let count = count.unwrap();
-
+            // Prevent bad data from causing oom loops
+            if count.unsigned_abs() > MAX_RLE_COUNT {
+                return Err(ColumnarError::RleDecodeError(format!(
+                    "decode Rle count is too large : {}",
+                    self.count
+                )));
+            }
             match count {
                 n if n > 0 => {
                     self.count = n;
@@ -254,6 +262,13 @@ impl<'a, 'de> BoolRleDecoder<'a, 'de> {
                 return Ok(None);
             }
             self.count = count.unwrap();
+            // Prevent bad data from causing oom loops
+            if self.count > MAX_RLE_COUNT {
+                return Err(ColumnarError::RleDecodeError(format!(
+                    "decode Rle count is too large : {}",
+                    self.count
+                )));
+            }
             self.last_value = !self.last_value;
         }
         self.count -= 1;

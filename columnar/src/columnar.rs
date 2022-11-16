@@ -37,7 +37,12 @@ impl<'de> DeFlavor<'de> for Cursor<'de> {
     }
 
     fn try_take_n(&mut self, ct: usize) -> postcard::Result<&'de [u8]> {
-        if self.pos + ct > self.end {
+        if self
+            .pos
+            .checked_add(ct)
+            .ok_or(postcard::Error::DeserializeUnexpectedEnd)?
+            > self.end
+        {
             Err(postcard::Error::DeserializeUnexpectedEnd)
         } else {
             let sli = &self.original[self.pos..self.pos + ct];

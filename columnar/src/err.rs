@@ -17,6 +17,8 @@ pub enum ColumnarError {
     InvalidStrategy(u8),
     #[error("io error")]
     IOError(#[from] io::Error),
+    #[error("overflow error")]
+    OverflowError,
     #[error("unknown data store error")]
     Unknown,
 }
