@@ -41,3 +41,9 @@ name = "nested_store"
 path = "fuzz_targets/nested_store.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "data"
+path = "fuzz_targets/data.rs"
+test = false
+doc = false

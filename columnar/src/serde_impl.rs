@@ -18,7 +18,7 @@ where
     {
         let columnar = ColumnEncoder::new();
         let bytes = columnar.encode(self).map_err(|e| {
-            println!("Column Serialize Error: {:?}", e);
+            // println!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)
@@ -46,21 +46,24 @@ where
             where
                 E: serde::de::Error,
             {
+                if bytes.len() < 1 {
+                    return Err(E::custom("invalid column bytes, bytes len < 1"));
+                }
                 let compress_flag = bytes[0];
                 let column = if compress_flag == 1 {
                     let buf = decompress(&bytes[1..]).map_err(|e| {
-                        println!("Column Decompress Error: {:?}", e);
+                        // println!("Column Decompress Error: {:?}", e);
                         serde::de::Error::custom(e.to_string())
                     })?;
                     let mut decoder = ColumnDecoder::new(&buf);
                     decoder.decode().map_err(|e| {
-                        println!("Column Deserialize Error: {:?}", e);
+                        // println!("Column Deserialize Error: {:?}", e);
                         serde::de::Error::custom(e.to_string())
                     })?
                 } else {
                     let mut decoder = ColumnDecoder::new(&bytes[1..]);
                     decoder.decode().map_err(|e| {
-                        println!("Column Deserialize Error: {:?}", e);
+                        // println!("Column Deserialize Error: {:?}", e);
                         serde::de::Error::custom(e.to_string())
                     })?
                 };

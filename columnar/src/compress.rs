@@ -48,14 +48,14 @@ impl CompressConfig {
     }
 }
 
-pub(crate) fn compress(input: &[u8], cfg: &CompressConfig) -> Result<Vec<u8>, ColumnarError> {
+pub fn compress(input: &[u8], cfg: &CompressConfig) -> Result<Vec<u8>, ColumnarError> {
     let mut output = Vec::new();
     let mut encoder = DeflateEncoder::new(input, cfg.compression);
     encoder.read_to_end(&mut output)?;
     Ok(output)
 }
 
-pub(crate) fn decompress<I: AsRef<[u8]>>(input: I) -> Result<Vec<u8>, ColumnarError> {
+pub fn decompress<I: AsRef<[u8]>>(input: I) -> Result<Vec<u8>, ColumnarError> {
     let mut output = Vec::new();
     let mut decoder = DeflateDecoder::new(input.as_ref());
     decoder.read_to_end(&mut output)?;
