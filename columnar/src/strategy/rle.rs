@@ -235,6 +235,11 @@ impl<'a, 'de> BoolRleDecoder<'a, 'de> {
         T: Clone + Deserialize<'de>,
     {
         let mut values = Vec::new();
+        if std::mem::size_of::<T>() > std::mem::size_of::<bool>() {
+            return Err(ColumnarError::RleDecodeError(
+                "BoolRle transmute failed".to_string(),
+            ));
+        }
         while let Some(value) = self.try_next()? {
             let data: T = std::mem::transmute_copy(&value);
             values.push(data);

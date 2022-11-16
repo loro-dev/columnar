@@ -31,7 +31,6 @@ pub fn get_without_generic_type_literal_by_syn_type(ty: &syn::Type) -> syn::Resu
 /// struct Data{
 ///     id: u32,   // this is num type
 ///     id2: ID,   // this is num type too, but it need to be annotated with #[columnar(original_type = "u64")]
-///     bool: bool, // this is not num type
 /// }
 /// ```
 pub fn is_field_type_is_can_copy(field_arg: &FieldArgs) -> syn::Result<bool> {
