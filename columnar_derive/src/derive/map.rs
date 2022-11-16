@@ -2,7 +2,7 @@ use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
-use super::utils::{add_generics_clause_to_where, is_field_type_is_num, process_strategy};
+use super::utils::{add_generics_clause_to_where, is_field_type_is_can_copy, process_strategy};
 
 pub fn generate_derive_hashmap_row_ser(
     input: &DeriveInput,
@@ -132,7 +132,7 @@ fn generate_with_map_per_columns(
         columns_quote.push(quote::quote!(#column_index));
         let columns_type = quote::quote!(::std::vec::Vec<_>);
         columns_types.push(columns_type);
-        let cow_columns_field = if is_field_type_is_num(args)? {
+        let cow_columns_field = if is_field_type_is_can_copy(args)? {
             quote::quote!(v.#field_name)
         } else if field_attr_ty.is_some() {
             match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
@@ -140,7 +140,7 @@ fn generate_with_map_per_columns(
                     quote::quote!(::columnar::ColumnarVec::<_, #field_type>::new(&v.#field_name))
                 }
                 "map" => {
-                    quote::quote!(::columnar::ColumnarMap<_, _, #field_type>::new(&v.#field_name))
+                    quote::quote!(::columnar::ColumnarMap::<_, _, #field_type>::new(&v.#field_name))
                 }
                 _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
             }
@@ -223,7 +223,7 @@ fn generate_map_per_column_to_de_columns(
             syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
         columns_quote.push(quote::quote!(#column_index));
         field_names.push(quote::quote!(#field_name));
-        let is_num = is_field_type_is_num(args)?;
+        let is_num = is_field_type_is_can_copy(args)?;
         let column_type = if is_num {
             quote::quote!(::columnar::Column<#field_type>)
         } else if field_attr_ty.is_some() {

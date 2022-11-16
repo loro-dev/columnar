@@ -48,7 +48,7 @@ pub use wrap::{ColumnarMap, ColumnarVec};
 mod serde_impl;
 pub use itertools::{izip, MultiUnzip};
 mod compress;
-pub use compress::CompressConfig;
+pub use compress::{compress, decompress, CompressConfig};
 
 pub use columnar_derive::*;
 pub use postcard::Error as PostcardError;

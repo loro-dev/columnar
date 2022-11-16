@@ -34,7 +34,7 @@ pub fn get_without_generic_type_literal_by_syn_type(ty: &syn::Type) -> syn::Resu
 ///     bool: bool, // this is not num type
 /// }
 /// ```
-pub fn is_field_type_is_num(field_arg: &FieldArgs) -> syn::Result<bool> {
+pub fn is_field_type_is_can_copy(field_arg: &FieldArgs) -> syn::Result<bool> {
     let mut field_type = &field_arg.ty;
     if let Some(original_type) = &field_arg.original_type {
         field_type = original_type;
@@ -53,6 +53,9 @@ pub fn is_field_type_is_num(field_arg: &FieldArgs) -> syn::Result<bool> {
             || path.is_ident("u128")
             || path.is_ident("f32")
             || path.is_ident("f64")
+            || path.is_ident("isize")
+            || path.is_ident("usize")
+            || path.is_ident("bool")
         {
             Ok(true)
         } else {
