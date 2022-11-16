@@ -1,7 +1,8 @@
 //! ## Container
 //!
 //! - `#[columnar]` means that some fields (marked by `#[columnar(type = "vec"|"map")]`) of this structure can be serialized and deserialized by columnar encoding
-//! - `#[columnar(vec, map)]` means the struct can be a rle row inside [Vec] or [HashMap]
+//! - `#[columnar(vec, map)]` means the struct can be a row inside [Vec] or [HashMap]
+//! - `#[columnar(ser, de)]` means the struct can be serialized or deserialized or both by columnar encoding
 //!
 //! ## Field Attributes
 //!
@@ -13,7 +14,21 @@
 //!   - Rle: [`columnar::strategy::rle`]
 //!   - BooleanRle
 //!   - DeltaRle
+//! - `#[columnar(original_type="u32")]`: this attribute is used to tell the columnar encoding the original type of the field, which is used when the field is a number
 //!
+//! ## Compress
+//!
+//! - `#[columnar(compress)]`: compress the columnar encoded bytes by
+//! [default settings](https://docs.rs/flate2/latest/flate2/struct.Compression.html#impl-Default) of Deflate algorithm.
+//!
+//! - more compress options:
+//!   - `#[columnar(compress(min_size=N))]`: compress the columnar encoded bytes when the size of the bytes is larger than N, **default N is 256**.
+//!   - `#[columnar(compress(level=N))]`: compress the columnar encoded bytes by Deflate algorithm with level N, N is in [0, 9], default N is 6,
+//! 0 is no compression, 9 is the best compression. See [flate2](https://docs.rs/flate2/latest/flate2/struct.Compression.html#) for more details.
+//!   - `#[columnar(compress(method="fast"|"best"|"default"))]`: compress the columnar encoded bytes by Deflate algorithm with method "fast", "best" or "default",
+//!       this attribute is equivalent to `#[columnar(compress(level=1|9|6))]`.
+//!   - Note: `level` and `method` can not be used at the same time.
+//!      
 
 mod err;
 use std::ops::DerefMut;
