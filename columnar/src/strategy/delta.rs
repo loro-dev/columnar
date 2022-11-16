@@ -86,27 +86,11 @@ impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
     pub(crate) unsafe fn decode_to_any<T>(&mut self) -> Result<Vec<T>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = &self.try_next()? {
-            // let value: T = if TypeId::of::<T>() == TypeId::of::<u8>() {
-            //     std::mem::transmute_copy(value)
-            // } else if TypeId::of::<T>() == TypeId::of::<u16>() {
-            //     std::mem::transmute_copy(value)
-            // } else if TypeId::of::<T>() == TypeId::of::<u32>() {
-            //     std::mem::transmute_copy(value)
-            // } else if TypeId::of::<T>() == TypeId::of::<u64>() {
-            //     std::mem::transmute_copy(value)
-            // } else if TypeId::of::<T>() == TypeId::of::<i8>() {
-            //     std::mem::transmute_copy(value)
-            // } else if TypeId::of::<T>() == TypeId::of::<i16>() {
-            //     std::mem::transmute_copy(value)
-            // } else if TypeId::of::<T>() == TypeId::of::<i32>() {
-            //     std::mem::transmute_copy(value)
-            // } else if TypeId::of::<T>() == TypeId::of::<i64>() {
-            //     std::mem::transmute_copy(value)
-            // } else {
-            //     return Err(ColumnarError::RleEncodeError(
-            //         "only num type can be decoded by delta encoder".to_string(),
-            //     ));
-            // };
+            if std::mem::size_of::<T>() > std::mem::size_of::<i128>() {
+                return Err(ColumnarError::RleDecodeError(
+                    "DeltaRle transmute failed".to_string(),
+                ));
+            }
             let value = std::mem::transmute_copy(value);
             values.push(value);
         }

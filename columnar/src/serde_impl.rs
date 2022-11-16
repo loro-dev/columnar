@@ -46,7 +46,7 @@ where
             where
                 E: serde::de::Error,
             {
-                if bytes.len() < 1 {
+                if bytes.is_empty() {
                     return Err(E::custom("invalid column bytes, bytes len < 1"));
                 }
                 let compress_flag = bytes[0];
