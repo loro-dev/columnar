@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use columnar::columnar;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use serde_columnar::columnar;
 lazy_static! {
     static ref STORE: VecStore = {
         let mut _data = Vec::new();
@@ -68,9 +68,9 @@ pub struct NestedStore {
 #[test]
 fn test_size() {
     // columnar
-    let bytes = columnar::to_vec(&*STORE).unwrap();
+    let bytes = serde_columnar::to_vec(&*STORE).unwrap();
     let columnar_size = bytes.len();
-    let store = columnar::from_bytes::<VecStore>(&bytes).unwrap();
+    let store = serde_columnar::from_bytes::<VecStore>(&bytes).unwrap();
     assert_eq!(store, *STORE);
 
     // postcard

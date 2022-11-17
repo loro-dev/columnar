@@ -28,7 +28,7 @@ pub fn generate_derive_vec_row_ser(
         const _:()={
         use serde::ser::SerializeTuple;
         #[automatically_derived]
-        impl #impl_generics ::columnar::RowSer<IT> for #struct_name_ident #ty_generics #where_clause {
+        impl #impl_generics ::serde_columnar::RowSer<IT> for #struct_name_ident #ty_generics #where_clause {
             const FIELD_NUM: usize = #fields_len;
             fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
             where
@@ -93,10 +93,10 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     } else if field_attr_ty.is_some() {
         match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
             "vec" => {
-                quote::quote!(::columnar::ColumnarVec::<_, #field_type>::new(&row.#field_name))
+                quote::quote!(::serde_columnar::ColumnarVec::<_, #field_type>::new(&row.#field_name))
             }
             "map" => {
-                quote::quote!(::columnar::ColumnarMap::<_, _, #field_type>::new(&row.#field_name))
+                quote::quote!(::serde_columnar::ColumnarMap::<_, _, #field_type>::new(&row.#field_name))
             }
             _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
         }
@@ -107,9 +107,9 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
         let #column_index = rows.into_iter().map(
             |row| #row_content
         ).collect::<::std::vec::Vec<_>>();
-        let #column_index = ::columnar::Column::new(
+        let #column_index = ::serde_columnar::Column::new(
             #column_index,
-            ::columnar::ColumnAttr{
+            ::serde_columnar::ColumnAttr{
                 index: #index_num,
                 strategy: #strategy,
                 compress: #compress_quote,
@@ -162,7 +162,7 @@ pub fn generate_derive_vec_row_de(
         const _:()={
         use serde::ser::SerializeTuple;
         #[automatically_derived]
-        impl #impl_generics ::columnar::RowDe<'de, IT> for #struct_name_ident #ty_generics #where_clause {
+        impl #impl_generics ::serde_columnar::RowDe<'de, IT> for #struct_name_ident #ty_generics #where_clause {
             const FIELD_NUM: usize = #fields_len;
             fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
             where
@@ -202,19 +202,19 @@ fn generate_per_column_to_de_columns(
         let field_type = &args.ty;
         let is_num = is_field_type_is_can_copy(args)?;
         let row_content = if is_num {
-            quote::quote!(::columnar::Column<#field_type>)
+            quote::quote!(::serde_columnar::Column<#field_type>)
         } else if field_attr_ty.is_some() {
             match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
                 "vec" => {
-                    quote::quote!(::columnar::Column<::columnar::ColumnarVec<_, #field_type>>)
+                    quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarVec<_, #field_type>>)
                 }
                 "map" => {
-                    quote::quote!(::columnar::Column<::columnar::ColumnarMap<_, _, #field_type>>)
+                    quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarMap<_, _, #field_type>>)
                 }
                 _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
             }
         } else {
-            quote::quote!(::columnar::Column<::std::borrow::Cow<#field_type>>)
+            quote::quote!(::serde_columnar::Column<::std::borrow::Cow<#field_type>>)
         };
         columns_types.push(row_content);
         let into_element = quote::quote!(
@@ -249,7 +249,7 @@ fn generate_per_column_to_de_columns(
     // generate
     let ret = quote::quote!(
         let (#(#columns_quote),*):(#(#columns_types),*) = serde::de::Deserialize::deserialize(de)?;
-        let ans = ::columnar::izip!(#(#into_iter_quote),*)
+        let ans = ::serde_columnar::izip!(#(#into_iter_quote),*)
                     .map(|(#(#field_names),*)| Self{
                         #(#field_names_build),*
                     }).collect();

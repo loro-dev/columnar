@@ -23,9 +23,9 @@ pub fn generate_derive_hashmap_row_ser(
     let ret = quote::quote!(
         const _:()={
             use serde::ser::SerializeTuple;
-            use columnar::MultiUnzip;
+            use serde_columnar::MultiUnzip;
             #[automatically_derived]
-            impl #impl_generics ::columnar::KeyRowSer<K, IT> for #struct_name_ident #ty_generics #where_clause {
+            impl #impl_generics ::serde_columnar::KeyRowSer<K, IT> for #struct_name_ident #ty_generics #where_clause {
                 const FIELD_NUM: usize = #fields_len;
                 fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
                 where
@@ -57,7 +57,7 @@ pub fn generate_derive_hashmap_row_de(
         const _:()={
             use serde::ser::SerializeTuple;
             #[automatically_derived]
-            impl #impl_generics ::columnar::KeyRowDe<'de, K, IT> for #struct_name_ident #ty_generics #where_clause {
+            impl #impl_generics ::serde_columnar::KeyRowDe<'de, K, IT> for #struct_name_ident #ty_generics #where_clause {
                 const FIELD_NUM: usize = #fields_len;
                 fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
                 where D: serde::Deserializer<'de>{
@@ -137,10 +137,10 @@ fn generate_with_map_per_columns(
         } else if field_attr_ty.is_some() {
             match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
                 "vec" => {
-                    quote::quote!(::columnar::ColumnarVec::<_, #field_type>::new(&v.#field_name))
+                    quote::quote!(::serde_columnar::ColumnarVec::<_, #field_type>::new(&v.#field_name))
                 }
                 "map" => {
-                    quote::quote!(::columnar::ColumnarMap::<_, _, #field_type>::new(&v.#field_name))
+                    quote::quote!(::serde_columnar::ColumnarMap::<_, _, #field_type>::new(&v.#field_name))
                 }
                 _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
             }
@@ -151,9 +151,9 @@ fn generate_with_map_per_columns(
 
         // real columns
         real_columns.push(quote::quote!(
-            let #column_index = ::columnar::Column::new(
+            let #column_index = ::serde_columnar::Column::new(
                 #column_index,
-                ::columnar::ColumnAttr{
+                ::serde_columnar::ColumnAttr{
                     index: #index_num,
                     strategy: #strategy,
                     compress: #compress_quote,
@@ -225,19 +225,19 @@ fn generate_map_per_column_to_de_columns(
         field_names.push(quote::quote!(#field_name));
         let is_num = is_field_type_is_can_copy(args)?;
         let column_type = if is_num {
-            quote::quote!(::columnar::Column<#field_type>)
+            quote::quote!(::serde_columnar::Column<#field_type>)
         } else if field_attr_ty.is_some() {
             match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
                 "vec" => {
-                    quote::quote!(::columnar::Column<::columnar::ColumnarVec<_, #field_type>>)
+                    quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarVec<_, #field_type>>)
                 }
                 "map" => {
-                    quote::quote!(::columnar::Column<::columnar::ColumnarMap<_, _, #field_type>>)
+                    quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarMap<_, _, #field_type>>)
                 }
                 _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
             }
         } else {
-            quote::quote!(::columnar::Column<::std::borrow::Cow<#field_type>>)
+            quote::quote!(::serde_columnar::Column<::std::borrow::Cow<#field_type>>)
         };
         columns_types.push(column_type);
 
@@ -267,7 +267,7 @@ fn generate_map_per_column_to_de_columns(
     let ret = quote::quote!(
         let (vec_k, #(#columns_quote),*): (::std::vec::Vec<_>, #(#columns_types),*) =
             ::serde::de::Deserialize::deserialize(de)?;
-        let ans: ::std::vec::Vec<_> = ::columnar::izip!(#(#into_iter_quote),*)
+        let ans: ::std::vec::Vec<_> = ::serde_columnar::izip!(#(#into_iter_quote),*)
             .map(|(#(#field_names),*)| Self{
                 #(#field_names_build),*
             }).collect();

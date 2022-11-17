@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use columnar::columnar;
 use serde::{Deserialize, Serialize};
+use serde_columnar::{columnar, from_bytes, to_vec};
 #[columnar(vec, map, ser, de)]
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 struct Data {
@@ -72,7 +72,7 @@ pub fn test() {
         .into_iter()
         .collect(),
     };
-    let buf = columnar::to_vec(&store).unwrap();
-    let store2 = columnar::from_bytes(&buf).unwrap();
+    let buf = to_vec(&store).unwrap();
+    let store2 = from_bytes(&buf).unwrap();
     assert_eq!(store, store2);
 }

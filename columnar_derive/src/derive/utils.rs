@@ -27,7 +27,7 @@ pub fn get_without_generic_type_literal_by_syn_type(ty: &syn::Type) -> syn::Resu
 }
 
 /// For example
-/// ```rust
+/// ```rust, ignore
 /// struct Data{
 ///     id: u32,   // this is num type
 ///     id2: ID,   // this is num type too, but it need to be annotated with #[columnar(original_type = "u64")]
@@ -125,7 +125,7 @@ pub fn process_strategy(
             let strategy = syn::Ident::new(strategy, proc_macro2::Span::call_site());
             let ret = quote::quote!(
                 std::option::Option::Some(
-                    ::columnar::Strategy::#strategy
+                    ::serde_columnar::Strategy::#strategy
                 )
             );
             Ok(ret)

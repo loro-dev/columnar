@@ -41,24 +41,24 @@ pub fn add_serde_with<C: ContainerFieldVariant, A: Args>(
             AsType::Vec => {
                 if derive_args.ser {
                     cfv.add_attr(parse_quote! {
-                        #[serde(serialize_with = "::columnar::RowSer::serialize_columns")]
+                        #[serde(serialize_with = "::serde_columnar::RowSer::serialize_columns")]
                     });
                 }
                 if derive_args.de {
                     cfv.add_attr(parse_quote! {
-                        #[serde(deserialize_with = "::columnar::RowDe::deserialize_columns")]
+                        #[serde(deserialize_with = "::serde_columnar::RowDe::deserialize_columns")]
                     });
                 }
             }
             AsType::Map => {
                 if derive_args.ser {
                     cfv.add_attr(parse_quote! {
-                        #[serde(serialize_with = "::columnar::KeyRowSer::serialize_columns")]
+                        #[serde(serialize_with = "::serde_columnar::KeyRowSer::serialize_columns")]
                     });
                 }
                 if derive_args.de {
                     cfv.add_attr(parse_quote! {
-                        #[serde(deserialize_with = "::columnar::KeyRowDe::deserialize_columns")]
+                        #[serde(deserialize_with = "::serde_columnar::KeyRowDe::deserialize_columns")]
                     });
                 }
             }

@@ -131,7 +131,7 @@ fn check_derive_serde(_: &DeriveInput) -> syn::Result<()> {
 ///
 fn add_consume_columnar_attribute(input: &TokenStream) -> syn::Result<TokenStream> {
     let consume_columnar_attribute = syn::parse_quote!(
-        #[derive(::columnar::__private_consume_columnar_attributes)]
+        #[derive(::serde_columnar::__private_consume_columnar_attributes)]
     );
     let item: Item = syn::parse(input.clone()).unwrap();
     match item {

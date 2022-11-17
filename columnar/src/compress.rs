@@ -5,7 +5,7 @@ use flate2::bufread::DeflateDecoder;
 use flate2::bufread::DeflateEncoder;
 use flate2::Compression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompressConfig {
     pub(crate) threshold: usize,
     pub(crate) compression: Compression,

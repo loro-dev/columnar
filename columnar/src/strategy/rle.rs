@@ -1,7 +1,7 @@
 /// Reference automerge implementation:
 /// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
 use crate::{
-    columnar::{ColumnarDecoder, ColumnarEncoder},
+    columnar_internal::{ColumnarDecoder, ColumnarEncoder},
     ColumnarError,
 };
 use serde::{Deserialize, Serialize};

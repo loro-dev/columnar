@@ -101,18 +101,18 @@ pub trait Args {
                     if compress.level.is_some() {
                         let level = compress.level.unwrap();
                         Ok(quote::quote! {
-                            Some(::columnar::CompressConfig::from_level(#threshold, #level))
+                            Some(::serde_columnar::CompressConfig::from_level(#threshold, #level))
                         })
                     } else {
                         let method = compress.method.unwrap();
                         // TODO: check method is best fast default
                         Ok(quote::quote! {
-                            Some(::columnar::CompressConfig::from_method(#threshold, #method.to_string()))
+                            Some(::serde_columnar::CompressConfig::from_method(#threshold, #method.to_string()))
                         })
                     }
                 }
                 Override::Inherit => {
-                    Ok(quote::quote! { Some(::columnar::CompressConfig::default()) })
+                    Ok(quote::quote! { Some(::serde_columnar::CompressConfig::default()) })
                 }
             }
         } else {
