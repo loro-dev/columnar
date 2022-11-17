@@ -1,11 +1,11 @@
-use columnar::{columnar, from_bytes, to_vec};
 use serde::{Deserialize, Serialize};
+use serde_columnar::{columnar, from_bytes, to_vec};
 use std::collections::HashMap;
 
 type ID = u64;
 
 #[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Data {
     #[columnar(strategy = "Rle")]
     id: u8,
@@ -26,6 +26,22 @@ pub struct Data {
     vec: Vec<Data>,
     #[columnar(type = "map")]
     map: HashMap<String, Data>,
+}
+
+impl PartialEq for Data {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.id2 == other.id2
+            && self.id3 == other.id3
+            && self.id4 == other.id4
+            && self.id5 == other.id5
+            && (self.id6 == other.id6 || (self.id6.is_nan() && other.id6.is_nan()))
+            && self.id7 == other.id7
+            && self.b == other.b
+            && self.name == other.name
+            && self.vec == other.vec
+            && self.map == other.map
+    }
 }
 
 #[columnar(vec, map, ser, de)]

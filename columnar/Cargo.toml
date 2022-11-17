@@ -1,7 +1,11 @@
 [package]
-name = "columnar"
+name = "serde_columnar"
 version = "0.1.0"
 edition = "2021"
+authors = ["leonzhao <leeeon233@gmail.com>", "zxch3n <remch183@outlook.com>"]
+license = "MIT OR Apache-2.0"
+description = "Easily convert Vector and HashMap structure data into Column-oriented data"
+keywords = ["columnar", "column_oriented", "compression", "serde", "column_store"]
 
 [dev-dependencies]
 postcard = "1.0.2"
@@ -11,9 +15,9 @@ serde_json = "1.0"
 
 [dependencies]
 serde = { version = "1.0" }
+serde_columnar_derive = {path = "../columnar_derive", version="0.1.0"}
 postcard = { version = "1.0", features = ["alloc"] }
 thiserror = "1.0"
-columnar_derive = { path = "../columnar_derive" }
 lazy_static = { version = "1.4", optional = true }
 bincode = { version = "1.3.3", optional = true }
 itertools = "0.10.5"
@@ -24,7 +28,6 @@ name = "columnar_bench"
 harness = false
 
 [features]
-default = ["bench"]
 bench = ["lazy_static", "bincode"]
 
 [lib]

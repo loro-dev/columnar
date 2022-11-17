@@ -36,8 +36,8 @@ use std::ops::DerefMut;
 pub use err::ColumnarError;
 mod column;
 pub use column::{Column, ColumnAttr};
-mod columnar;
-pub use crate::columnar::{ColumnarDecoder, ColumnarEncoder};
+mod columnar_internal;
+pub use crate::columnar_internal::{ColumnarDecoder, ColumnarEncoder};
 mod row;
 pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 mod strategy;
@@ -50,8 +50,8 @@ pub use itertools::{izip, MultiUnzip};
 mod compress;
 pub use compress::{compress, decompress, CompressConfig};
 
-pub use columnar_derive::*;
 pub use postcard::Error as PostcardError;
+pub use serde_columnar_derive::*;
 
 #[cfg(feature = "bench")]
 extern crate lazy_static;

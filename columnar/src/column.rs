@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::compress::{compress, CompressConfig};
 use crate::{
-    columnar::ColumnarEncoder,
+    columnar_internal::ColumnarEncoder,
     strategy::{
         AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaRleDecoder,
         DeltaRleEncoder, Strategy,
@@ -13,14 +13,14 @@ use crate::{
     ColumnarDecoder, ColumnarError,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnAttr {
     pub index: usize,
     pub strategy: Option<Strategy>,
     pub compress: Option<CompressConfig>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Column<T: Clone> {
     pub data: Vec<T>,
     pub(crate) attr: ColumnAttr,
