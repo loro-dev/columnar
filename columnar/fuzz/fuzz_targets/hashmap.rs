@@ -1,5 +1,5 @@
 #![no_main]
-use columnar::{from_bytes, to_vec};
+use serde_columnar::{from_bytes, to_vec};
 use columnar_fuzz::MapStore;
 use libfuzzer_sys::fuzz_target;
 

@@ -2,7 +2,7 @@ use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
-use super::utils::{add_generics_clause_to_where, is_field_type_is_can_copy, process_strategy};
+use super::utils::{add_generics_clause_to_where, is_field_type_is_can_copy};
 
 pub fn generate_derive_hashmap_row_ser(
     input: &DeriveInput,
@@ -122,9 +122,7 @@ fn generate_with_map_per_columns(
         let field_name = &args.ident;
         let field_type = &args.ty;
         let field_attr_ty = &args._type;
-        let ori_ty = &args.original_type;
         let compress_quote = &args.compress_args()?;
-        let strategy = process_strategy(&args.strategy, field_type, ori_ty)?;
         let index = args.index.unwrap();
         let index_num = syn::LitInt::new(&index.to_string(), proc_macro2::Span::call_site());
         let column_index =
@@ -150,16 +148,21 @@ fn generate_with_map_per_columns(
         cow_columns_fields.push(cow_columns_field);
 
         // real columns
-        real_columns.push(quote::quote!(
-            let #column_index = ::serde_columnar::Column::new(
+        let column_type_token = args.get_strategy_column(quote::quote!(#field_type))?;
+        let column_content_token = if args.strategy.is_none() {
+            quote::quote!()
+        } else {
+            quote::quote!(let #column_index = #column_type_token::new(
                 #column_index,
                 ::serde_columnar::ColumnAttr{
                     index: #index_num,
-                    strategy: #strategy,
+                    // strategy: #strategy,
                     compress: #compress_quote,
                 }
-            );
-        ));
+            );)
+        };
+
+        real_columns.push(column_content_token);
     }
 
     let mut ret = quote::quote!(
@@ -225,19 +228,25 @@ fn generate_map_per_column_to_de_columns(
         field_names.push(quote::quote!(#field_name));
         let is_num = is_field_type_is_can_copy(args)?;
         let column_type = if is_num {
-            quote::quote!(::serde_columnar::Column<#field_type>)
+            args.get_strategy_column(quote::quote!(#field_type))?
         } else if field_attr_ty.is_some() {
             match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
                 "vec" => {
-                    quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarVec<_, #field_type>>)
+                    args.get_strategy_column(
+                        quote::quote!(::serde_columnar::ColumnarVec<_, #field_type>),
+                    )?
+                    // quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarVec<_, #field_type>>)
                 }
                 "map" => {
-                    quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarMap<_, _, #field_type>>)
+                    args.get_strategy_column(
+                        quote::quote!(::serde_columnar::ColumnarMap<_, _, #field_type>),
+                    )?
+                    // quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarMap<_, _, #field_type>>)
                 }
                 _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
             }
         } else {
-            quote::quote!(::serde_columnar::Column<::std::borrow::Cow<#field_type>>)
+            args.get_strategy_column(quote::quote!(::std::borrow::Cow<#field_type>))?
         };
         columns_types.push(column_type);
 
@@ -258,9 +267,13 @@ fn generate_map_per_column_to_de_columns(
         };
         field_names_build.push(field_name_build);
 
-        let into_element = quote::quote!(
-            #column_index.data.into_iter()
-        );
+        let into_element = if args.strategy.is_none() {
+            quote::quote!(#column_index.into_iter())
+        } else {
+            quote::quote!(
+                #column_index.data.into_iter()
+            )
+        };
         into_iter_quote.push(into_element);
     }
 

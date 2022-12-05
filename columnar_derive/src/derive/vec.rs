@@ -2,7 +2,7 @@ use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
-use super::utils::{add_generics_clause_to_where, is_field_type_is_can_copy, process_strategy};
+use super::utils::{add_generics_clause_to_where, is_field_type_is_can_copy};
 
 pub fn generate_derive_vec_row_ser(
     input: &DeriveInput,
@@ -80,8 +80,6 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     let field_name = &field_arg.ident;
     let field_type = &field_arg.ty;
     let field_attr_ty = &field_arg._type;
-    let ori_ty = &field_arg.original_type;
-    let strategy = process_strategy(&field_arg.strategy, field_type, ori_ty)?;
     let index_num = field_arg.index.unwrap();
     let column_index = syn::Ident::new(
         &format!("column{}", index_num),
@@ -103,18 +101,27 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     } else {
         quote::quote!(std::borrow::Cow::Borrowed(&row.#field_name))
     };
+    let column_type_token = field_arg.get_strategy_column(quote::quote!(#field_type))?;
+    let column_content_token = if field_arg.strategy.is_none() {
+        quote::quote!()
+    } else {
+        quote::quote!(let #column_index = #column_type_token::new(
+            #column_index,
+            ::serde_columnar::ColumnAttr{
+                index: #index_num,
+                // strategy: #strategy,
+                compress: #compress_quote,
+            }
+        );)
+    };
+
     let ret = quote::quote!(
         let #column_index = rows.into_iter().map(
             |row| #row_content
         ).collect::<::std::vec::Vec<_>>();
-        let #column_index = ::serde_columnar::Column::new(
-            #column_index,
-            ::serde_columnar::ColumnAttr{
-                index: #index_num,
-                strategy: #strategy,
-                compress: #compress_quote,
-            }
-        );
+
+        #column_content_token
+
     );
     Ok(ret)
 }
@@ -201,25 +208,35 @@ fn generate_per_column_to_de_columns(
         columns_quote.push(quote::quote!(#column_index));
         let field_type = &args.ty;
         let is_num = is_field_type_is_can_copy(args)?;
+        let column_type_token = args.get_strategy_column(quote::quote!(#field_type))?;
         let row_content = if is_num {
-            quote::quote!(::serde_columnar::Column<#field_type>)
+            column_type_token
         } else if field_attr_ty.is_some() {
             match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
-                "vec" => {
-                    quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarVec<_, #field_type>>)
-                }
+                "vec" => args.get_strategy_column(
+                    quote::quote!(::serde_columnar::ColumnarVec<_, #field_type>),
+                )?,
                 "map" => {
-                    quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarMap<_, _, #field_type>>)
+                    args.get_strategy_column(
+                        quote::quote!(::serde_columnar::ColumnarMap<_, _, #field_type>),
+                    )?
+                    // quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarMap<_, _, #field_type>>)
                 }
                 _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
             }
         } else {
-            quote::quote!(::serde_columnar::Column<::std::borrow::Cow<#field_type>>)
+            args.get_strategy_column(quote::quote!(::std::borrow::Cow<#field_type>))?
+            // quote::quote!(::serde_columnar::Column<::std::borrow::Cow<#field_type>>)
         };
         columns_types.push(row_content);
-        let into_element = quote::quote!(
-            #column_index.data.into_iter()
-        );
+        let into_element = if args.strategy.is_none() {
+            quote::quote!(#column_index.into_iter())
+        } else {
+            quote::quote!(
+                #column_index.data.into_iter()
+            )
+        };
+
         into_iter_quote.push(into_element);
 
         field_names.push(field_name);

@@ -1,5 +1,5 @@
 use darling::{util::Override, Error as DarlingError, FromField, FromMeta, FromVariant};
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
 use syn::{AttributeArgs, DeriveInput};
 
 use crate::attr::{add_serde_skip, add_serde_with};
@@ -117,6 +117,18 @@ pub trait Args {
             }
         } else {
             Ok(quote::quote!(None))
+        }
+    }
+    fn get_strategy_column(&self, ty: TokenStream) -> syn::Result<proc_macro2::TokenStream> {
+        if let Some(strategy) = self.strategy() {
+            match strategy.as_str() {
+                "Rle" => Ok(quote::quote!(::serde_columnar::RleColumn::<#ty>)),
+                "BoolRle" => Ok(quote::quote!(::serde_columnar::BoolRleColumn)),
+                "DeltaRle" => Ok(quote::quote!(::serde_columnar::DeltaRleColumn::<#ty>)),
+                _ => unreachable!("strategy should be Rle, BoolRle or DeltaRle"),
+            }
+        } else {
+            Ok(quote::quote!(::std::vec::Vec::<#ty>))
         }
     }
 }

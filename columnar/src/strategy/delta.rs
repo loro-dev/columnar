@@ -19,41 +19,7 @@ impl<'a> DeltaRleEncoder<'a> {
     pub(crate) fn append(&mut self, value: i128) -> Result<(), ColumnarError> {
         let delta = value.saturating_sub(self.absolute_value);
         self.absolute_value = value;
-        self.rle.append(&delta)
-    }
-
-    /// #Safety:
-    ///
-    /// when T is u8, u16, u32, ,u64, usize, i8, i16, i32, i64, isize, `append_any` is safe
-    pub(crate) unsafe fn append_any<T>(&mut self, value: &T) -> Result<(), ColumnarError> {
-        let padding = std::mem::size_of::<i128>() / std::mem::size_of::<T>();
-        let value = match padding {
-            1 => std::mem::transmute_copy(value),
-            2 => {
-                let value: u64 = std::mem::transmute_copy(value);
-                value as i128
-            }
-            4 => {
-                let value: u32 = std::mem::transmute_copy(value);
-                value as i128
-            }
-            8 => {
-                let value: u16 = std::mem::transmute_copy(value);
-                value as i128
-            }
-            16 => {
-                let value: u8 = std::mem::transmute_copy(value);
-                value as i128
-            }
-            _ => {
-                return Err(ColumnarError::RleEncodeError(
-                    "only 8 & 16 & 32 num type can be encoded by delta encoder".to_string(),
-                ));
-            }
-        };
-        let delta = value.saturating_sub(self.absolute_value);
-        self.absolute_value = value;
-        self.rle.append(&delta)
+        self.rle.append(delta)
     }
 
     pub(crate) fn finish(self) -> Result<(), ColumnarError> {
@@ -75,30 +41,22 @@ impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn decode(&mut self) -> Result<Vec<i128>, ColumnarError> {
+    pub(crate) fn decode<T: TryFrom<i128>>(&mut self) -> Result<Vec<T>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
-            values.push(value);
-        }
-        Ok(values)
-    }
-
-    pub(crate) unsafe fn decode_to_any<T>(&mut self) -> Result<Vec<T>, ColumnarError> {
-        let mut values = Vec::new();
-        while let Some(value) = &self.try_next()? {
-            if std::mem::size_of::<T>() > std::mem::size_of::<i128>() {
-                return Err(ColumnarError::RleDecodeError(
-                    "DeltaRle transmute failed".to_string(),
-                ));
-            }
-            let value = std::mem::transmute_copy(value);
-            values.push(value);
+            values.push(value.try_into().map_err(|_| {
+                ColumnarError::RleDecodeError(format!(
+                    "{} cannot be safely converted from i128",
+                    value
+                ))
+            })?);
         }
         Ok(values)
     }
 
     fn try_next(&mut self) -> Result<Option<i128>, ColumnarError> {
-        if let Some(delta) = self.rle.try_next()? {
+        let next = self.rle.try_next()?;
+        if let Some(delta) = next {
             self.absolute_value = self.absolute_value.saturating_add(delta);
             Ok(Some(self.absolute_value))
         } else {
@@ -113,19 +71,14 @@ mod test {
         use super::*;
         let mut columnar = ColumnarEncoder::new();
         let mut encoder = DeltaRleEncoder::new(&mut columnar);
-        encoder.append(81020993).unwrap();
-        encoder.append(20000000).unwrap();
-        encoder.append(3).unwrap();
-        encoder.append(4).unwrap();
-        encoder.append(5).unwrap();
+        encoder.append(0).unwrap();
+        encoder.append(1).unwrap();
         encoder.finish().unwrap();
         let buf = columnar.into_bytes();
         println!("{:?}", buf);
         let mut decoder = ColumnarDecoder::new(&buf);
         let mut delta_rle_decoder = DeltaRleDecoder::new(&mut decoder);
-        let values: Vec<i64> = unsafe { delta_rle_decoder.decode_to_any().unwrap() };
-        // let values: Vec<i64> = delta_rle_decoder.decode().unwrap();
-        println!("{:?}", values);
-        assert_eq!(values, vec![81020993, 20000000, 3, 4, 5]);
+        let values: Vec<u64> = delta_rle_decoder.decode().unwrap();
+        assert_eq!(values, vec![0, 1]);
     }
 }

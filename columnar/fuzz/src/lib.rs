@@ -1,6 +1,6 @@
 use arbitrary::{Arbitrary, Unstructured};
-use columnar::columnar;
 use serde::{ser::SerializeTuple, Deserialize, Serialize};
+use serde_columnar::columnar;
 use std::collections::HashMap;
 
 type ID = u64;

@@ -35,18 +35,22 @@ use std::ops::DerefMut;
 
 pub use err::ColumnarError;
 mod column;
-pub use column::{Column, ColumnAttr};
+pub use column::{
+    bool_rle::BoolRleColumn,
+    delta_rle::{DeltaRleColumn, DeltaRleable},
+    rle::{RleColumn, Rleable},
+    ColumnAttr,
+};
 mod columnar_internal;
 pub use crate::columnar_internal::{ColumnarDecoder, ColumnarEncoder};
 mod row;
 pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 mod strategy;
 mod wrap;
+pub use itertools::{izip, MultiUnzip};
 use serde::{Deserialize, Serialize};
 pub use strategy::Strategy;
 pub use wrap::{ColumnarMap, ColumnarVec};
-mod serde_impl;
-pub use itertools::{izip, MultiUnzip};
 mod compress;
 pub use compress::{compress, decompress, CompressConfig};
 

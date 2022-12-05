@@ -1,6 +1,6 @@
 #![no_main]
 use columnar_fuzz::NestedStore;
-use columnar::{from_bytes, to_vec};
+use serde_columnar::{from_bytes, to_vec};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|store: NestedStore| {

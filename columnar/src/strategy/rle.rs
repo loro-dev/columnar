@@ -1,6 +1,7 @@
 /// Reference automerge implementation:
 /// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
 use crate::{
+    column::rle::Rleable,
     columnar_internal::{ColumnarDecoder, ColumnarEncoder},
     ColumnarError,
 };
@@ -44,14 +45,14 @@ impl<'a> BoolRleEncoder<'a> {
     }
 }
 
-pub struct AnyRleEncoder<'a, T> {
+pub(crate) struct AnyRleEncoder<'a, T> {
     ser: &'a mut ColumnarEncoder,
     state: RleState<T>,
 }
 
 impl<'a, T> AnyRleEncoder<'a, T>
 where
-    T: PartialEq + Clone + Serialize,
+    T: Rleable,
 {
     pub fn new(ser: &'a mut ColumnarEncoder) -> Self {
         Self {
@@ -154,7 +155,7 @@ pub(crate) struct AnyRleDecoder<'a, 'de, T> {
 
 impl<'a, 'de, T> AnyRleDecoder<'a, 'de, T>
 where
-    T: Clone + Deserialize<'de>,
+    T: Rleable,
 {
     pub(crate) fn new(de: &'a mut ColumnarDecoder<'de>) -> Self {
         Self {
@@ -176,9 +177,6 @@ where
 
     pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
         while self.count == 0 {
-            // if self.de.is_empty() {
-            //     return Ok(None);
-            // }
             let count = isize::deserialize(self.de.deref_mut());
             if count.is_err() {
                 return Ok(None);
@@ -233,24 +231,6 @@ impl<'a, 'de> BoolRleDecoder<'a, 'de> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
             values.push(value);
-        }
-        Ok(values)
-    }
-
-    // Safety: assert T is bool
-    pub(crate) unsafe fn decode_to_any<T>(&mut self) -> Result<Vec<T>, ColumnarError>
-    where
-        T: Clone + Deserialize<'de>,
-    {
-        let mut values = Vec::new();
-        if std::mem::size_of::<T>() > std::mem::size_of::<bool>() {
-            return Err(ColumnarError::RleDecodeError(
-                "BoolRle transmute failed".to_string(),
-            ));
-        }
-        while let Some(value) = self.try_next()? {
-            let data: T = std::mem::transmute_copy(&value);
-            values.push(data);
         }
         Ok(values)
     }

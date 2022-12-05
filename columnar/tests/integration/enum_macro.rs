@@ -5,7 +5,7 @@ use serde_columnar::{columnar, from_bytes, to_vec};
 #[columnar(vec, map, ser, de)]
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 struct Data {
-    #[columnar(strategy = "DeltaRle")]
+    #[columnar(compress, strategy = "DeltaRle")]
     id: u64,
     s: String,
 }
@@ -30,6 +30,7 @@ pub fn test_enum_macro_vec() {
     }
     let store = Enum::Vec(vec);
     let buf = to_vec(&store).unwrap();
+    println!("buf {:?}", &buf);
     println!("buf len: {:?}", buf.len());
     let store2 = from_bytes(&buf).unwrap();
     assert_eq!(store, store2);

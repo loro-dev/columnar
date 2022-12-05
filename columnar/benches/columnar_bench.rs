@@ -1,6 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 #[cfg(feature = "bench")]
 mod run {
+    use criterion::{criterion_group, criterion_main, Criterion};
     use lazy_static::lazy_static;
     use serde::{Deserialize, Serialize};
     use serde_columnar::columnar;
@@ -53,17 +54,17 @@ mod run {
         pub data: Vec<NormalData>,
     }
 
-    fn columnar_ende(c: &mut Criterion) {
+    pub fn columnar_ende(c: &mut Criterion) {
         c.bench_function("columnar_ende", |b| {
             b.iter(|| {
-                let bytes = columnar::to_vec(&*STORE).unwrap();
-                let store = columnar::from_bytes::<VecStore>(&bytes).unwrap();
+                let bytes = serde_columnar::to_vec(&*STORE).unwrap();
+                let store = serde_columnar::from_bytes::<VecStore>(&bytes).unwrap();
                 assert_eq!(store, *STORE);
             })
         });
     }
 
-    fn postcard_ende(c: &mut Criterion) {
+    pub fn postcard_ende(c: &mut Criterion) {
         c.bench_function("postcard_ende", |b| {
             b.iter(|| {
                 let bytes = postcard::to_allocvec(&*NORMAL_STORE).unwrap();
@@ -73,7 +74,7 @@ mod run {
         });
     }
 
-    fn bincode_ende(c: &mut Criterion) {
+    pub fn bincode_ende(c: &mut Criterion) {
         c.bench_function("bincode_ende", |b| {
             b.iter(|| {
                 let bytes = bincode::serialize(&*NORMAL_STORE).unwrap();
@@ -85,7 +86,12 @@ mod run {
 }
 pub fn dumb(_c: &mut Criterion) {}
 #[cfg(feature = "bench")]
-criterion_group!(benches, columnar_ende, postcard_ende, bincode_ende);
+criterion_group!(
+    benches,
+    run::columnar_ende,
+    run::postcard_ende,
+    run::bincode_ende
+);
 #[cfg(not(feature = "bench"))]
 criterion_group!(benches, dumb);
 criterion_main!(benches);
