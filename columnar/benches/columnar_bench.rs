@@ -55,11 +55,15 @@ mod run {
     }
 
     pub fn columnar_ende(c: &mut Criterion) {
-        c.bench_function("columnar_ende", |b| {
+        c.bench_function("columnar_encode", |b| {
             b.iter(|| {
                 let bytes = serde_columnar::to_vec(&*STORE).unwrap();
+            })
+        });
+        c.bench_function("columnar_decode", |b| {
+            let bytes = serde_columnar::to_vec(&*STORE).unwrap();
+            b.iter(|| {
                 let store = serde_columnar::from_bytes::<VecStore>(&bytes).unwrap();
-                assert_eq!(store, *STORE);
             })
         });
     }
