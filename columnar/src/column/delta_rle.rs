@@ -5,9 +5,9 @@ use crate::{
 
 use super::{rle::Rleable, ColumnTrait};
 
-pub trait DeltaRleable: Rleable + Copy + TryFrom<i128> + Into<i128> {}
+pub trait DeltaRleable: Rleable + Copy + TryFrom<i128> + TryInto<i128> {}
 
-impl<T> DeltaRleable for T where T: Rleable + Copy + TryFrom<i128> + Into<i128> {}
+impl<T> DeltaRleable for T where T: Rleable + Copy + TryFrom<i128> + TryInto<i128> {}
 
 #[derive(Debug)]
 pub struct DeltaRleColumn<T> {
@@ -23,7 +23,7 @@ impl<T> DeltaRleColumn<T> {
 
 impl<T> ColumnTrait for DeltaRleColumn<T>
 where
-    T: DeltaRleable + TryFrom<i128> + Into<i128>,
+    T: DeltaRleable,
 {
     const STRATEGY: Strategy = Strategy::DeltaRle;
     fn attr(&self) -> &ColumnAttr {
@@ -32,7 +32,10 @@ where
     fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError> {
         let mut delta_rle = DeltaRleEncoder::new(columnar_encoder);
         for &data in self.data.iter() {
-            delta_rle.append(data.into())?
+            delta_rle
+                .append(data.try_into().map_err(|_e| {
+                    ColumnarError::RleEncodeError("cannot into i128".to_string())
+                })?)?
         }
 
         delta_rle.finish()
