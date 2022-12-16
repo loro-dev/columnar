@@ -8,7 +8,6 @@ use std::io::Read;
 
 use flate2::bufread::DeflateDecoder;
 use flate2::bufread::DeflateEncoder;
-use flate2::Compression;
 
 use crate::compress::CompressConfig;
 use crate::Strategy;
@@ -57,18 +56,16 @@ impl ColumnEncoder {
         // TODO: forward backward compatible (strategy, index)
         let mut ans = Vec::new();
         let attr = column.attr();
-        let level = match attr.compress {
-            Some(ref config) => {
-                if encoded_buf.len() < config.threshold {
-                    config.compression
-                } else {
-                    Compression::none()
-                }
+        if let Some(ref config) = attr.compress {
+            if encoded_buf.len() < config.threshold {
+                ans.push(1);
+                let mut encoder = DeflateEncoder::new(encoded_buf.as_slice(), config.compression);
+                encoder.read_to_end(&mut ans)?;
+                return Ok(ans);
             }
-            None => Compression::none(),
-        };
-        let mut encoder = DeflateEncoder::new(encoded_buf.as_slice(), level);
-        encoder.read_to_end(&mut ans)?;
+        }
+        ans.push(0);
+        ans.extend(encoded_buf);
         Ok(ans)
     }
 
@@ -91,16 +88,18 @@ impl<'b> ColumnDecoder<'b> {
         }
     }
 
-    fn process_compress(bytes: &[u8]) -> Result<Vec<u8>, ColumnarError> {
-        let mut output = Vec::new();
-        let mut decoder = DeflateDecoder::new(bytes);
-        decoder.read_to_end(&mut output)?;
-        Ok(output)
-    }
-
     pub(crate) fn decode<T: ColumnTrait>(&mut self) -> Result<T, ColumnarError> {
-        let bytes = Self::process_compress(self.original_bytes)?;
-        let mut columnar_decoder = ColumnarDecoder::new(&bytes);
+        let (compress, bytes) = self.original_bytes.split_at(1);
+        let compress = compress[0];
+        let mut output = Vec::new();
+        let bytes = if compress == 0 {
+            bytes
+        } else {
+            let mut decoder = DeflateDecoder::new(bytes);
+            decoder.read_to_end(&mut output)?;
+            &output
+        };
+        let mut columnar_decoder = ColumnarDecoder::new(bytes);
         let column = T::decode(&mut columnar_decoder)?;
         Ok(column)
     }
