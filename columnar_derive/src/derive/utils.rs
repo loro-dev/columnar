@@ -11,20 +11,20 @@ use syn::WherePredicate;
 ///     bool: bool, // this is type literal
 /// }
 /// ```
-pub fn get_without_generic_type_literal_by_syn_type(ty: &syn::Type) -> syn::Result<Option<String>> {
-    let mut type_literal = String::new();
-    match ty {
-        syn::Type::Path(syn::TypePath { path, .. }) => {
-            if let Some(ident) = path.get_ident() {
-                type_literal.push_str(&ident.to_string());
-            } else {
-                return Ok(None);
-            }
-        }
-        _ => return Ok(None),
-    }
-    Ok(Some(type_literal))
-}
+// pub fn get_without_generic_type_literal_by_syn_type(ty: &syn::Type) -> syn::Result<Option<String>> {
+//     let mut type_literal = String::new();
+//     match ty {
+//         syn::Type::Path(syn::TypePath { path, .. }) => {
+//             if let Some(ident) = path.get_ident() {
+//                 type_literal.push_str(&ident.to_string());
+//             } else {
+//                 return Ok(None);
+//             }
+//         }
+//         _ => return Ok(None),
+//     }
+//     Ok(Some(type_literal))
+// }
 
 /// For example
 /// ```rust, ignore

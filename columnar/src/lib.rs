@@ -10,7 +10,7 @@
 //! - `#[columnar(type = "vec"|"map")]`:
 //!   - vec means the decorated field T is a container, holds Value and satisfies `&T: IntoIter<Item=&Value>` `T: FromIterator<Value>`
 //!   - map means the decorated field T is a container, holds Value and satisfies `&T: IntoIter<Item=(&K, &Value)>` `T: FromIterator<(K, Value)>`
-//! - `#[columnar(strategy = "Rle"|"BooleanRle"|"DeltaRle")]`: You can only choose one from the three
+//! - `#[columnar(strategy = "Rle"|"BoolRle"|"DeltaRle")]`: You can only choose one from the three
 //!   - Rle: [`columnar::strategy::rle`]
 //!   - BooleanRle
 //!   - DeltaRle
@@ -51,7 +51,9 @@ pub use itertools::{izip, MultiUnzip};
 use serde::{Deserialize, Serialize};
 pub use strategy::Strategy;
 pub use wrap::{ColumnarMap, ColumnarVec};
+#[cfg(feature = "compress")]
 mod compress;
+#[cfg(feature = "compress")]
 pub use compress::{compress, decompress, CompressConfig};
 
 pub use postcard::Error as PostcardError;

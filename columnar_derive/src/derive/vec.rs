@@ -85,6 +85,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
         &format!("column{}", index_num),
         proc_macro2::Span::call_site(),
     );
+    #[cfg(feature = "compress")]
     let compress_quote = field_arg.compress_args()?;
     let row_content = if is_field_type_is_can_copy(field_arg)? {
         quote::quote!(row.#field_name)
@@ -102,17 +103,34 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
         quote::quote!(std::borrow::Cow::Borrowed(&row.#field_name))
     };
     let column_type_token = field_arg.get_strategy_column(quote::quote!(#field_type))?;
+    #[cfg(feature = "compress")]
     let column_content_token = if field_arg.strategy.is_none() {
         quote::quote!()
     } else {
-        quote::quote!(let #column_index = #column_type_token::new(
+        quote::quote!(let #column_index = 
+            #column_type_token::new(
             #column_index,
             ::serde_columnar::ColumnAttr{
                 index: #index_num,
                 // strategy: #strategy,
+                
                 compress: #compress_quote,
             }
         );)
+        
+    };
+    #[cfg(not(feature = "compress"))]
+    let column_content_token = if field_arg.strategy.is_none() {
+        quote::quote!()
+    } else {
+        quote::quote!(let #column_index = 
+            #column_type_token::new(
+            #column_index,
+            ::serde_columnar::ColumnAttr{
+                index: #index_num,
+            }
+        );)
+        
     };
 
     let ret = quote::quote!(

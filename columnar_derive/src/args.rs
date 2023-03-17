@@ -1,9 +1,10 @@
+#[allow(unused_imports)]
 use darling::{util::Override, Error as DarlingError, FromField, FromMeta, FromVariant};
+#[allow(unused_imports)]
 use proc_macro2::{Span, TokenStream};
 use syn::{AttributeArgs, DeriveInput};
 
 use crate::attr::{add_serde_skip, add_serde_with};
-const DEFAULT_COMPRESS_THRESHOLD: usize = 256;
 
 #[derive(Debug, FromMeta)]
 pub struct DeriveArgs {
@@ -16,7 +17,7 @@ pub struct DeriveArgs {
     #[darling(default)]
     pub(crate) de: bool,
 }
-
+#[cfg(feature = "compress")]
 #[derive(FromMeta, Debug, Clone)]
 pub struct CompressArgs {
     pub min_size: Option<usize>,
@@ -46,7 +47,10 @@ pub struct FieldArgs {
     /// If skip, this field will be ignored.
     #[darling(default)]
     pub skip: bool,
+    #[cfg(feature = "compress")]
     pub compress: Option<Override<CompressArgs>>,
+    #[cfg(not(feature = "compress"))]
+    pub compress: Option<()>,
 }
 
 #[derive(FromVariant, Debug)]
@@ -86,7 +90,9 @@ pub trait Args {
     fn original_type(&self) -> Option<syn::Type>;
     fn _type(&self) -> Option<AsType>;
     fn skip(&self) -> bool;
+    #[cfg(feature = "compress")]
     fn compress(&self) -> Option<Override<CompressArgs>>;
+    #[cfg(feature = "compress")]
     fn compress_args(&self) -> syn::Result<proc_macro2::TokenStream> {
         if let Some(compress) = self.compress() {
             match compress {
@@ -97,6 +103,7 @@ pub trait Args {
                             "columnar only support struct and enum",
                         ));
                     }
+                    const DEFAULT_COMPRESS_THRESHOLD: usize = 256;
                     let threshold = compress.min_size.unwrap_or(DEFAULT_COMPRESS_THRESHOLD);
                     if compress.level.is_some() {
                         let level = compress.level.unwrap();
@@ -164,6 +171,7 @@ impl Args for FieldArgs {
         self.skip
     }
 
+    #[cfg(feature = "compress")]
     fn compress(&self) -> Option<Override<CompressArgs>> {
         self.compress.clone()
     }
@@ -200,6 +208,7 @@ impl Args for VariantArgs {
         self.skip
     }
 
+    #[cfg(feature = "compress")]
     fn compress(&self) -> Option<Override<CompressArgs>> {
         todo!()
     }

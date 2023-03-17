@@ -9,6 +9,8 @@ pub enum ColumnarError {
     SerializeError(#[from] PostcardError),
     #[error("`{0}` during columnar encoding")]
     ColumnarEncodeError(String),
+    #[error("`{0}` during columnar decoding")]
+    ColumnarDecodeError(Box<str>),
     #[error("`{0}` during rle encoding")]
     RleEncodeError(String),
     #[error("`{0}` during rle decoding")]

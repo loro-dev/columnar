@@ -122,6 +122,7 @@ fn generate_with_map_per_columns(
         let field_name = &args.ident;
         let field_type = &args.ty;
         let field_attr_ty = &args._type;
+        #[cfg(feature = "compress")]
         let compress_quote = &args.compress_args()?;
         let index = args.index.unwrap();
         let index_num = syn::LitInt::new(&index.to_string(), proc_macro2::Span::call_site());
@@ -149,6 +150,7 @@ fn generate_with_map_per_columns(
 
         // real columns
         let column_type_token = args.get_strategy_column(quote::quote!(#field_type))?;
+        #[cfg(feature = "compress")]
         let column_content_token = if args.strategy.is_none() {
             quote::quote!()
         } else {
@@ -158,6 +160,17 @@ fn generate_with_map_per_columns(
                     index: #index_num,
                     // strategy: #strategy,
                     compress: #compress_quote,
+                }
+            );)
+        };
+        #[cfg(not(feature = "compress"))]
+        let column_content_token = if args.strategy.is_none() {
+            quote::quote!()
+        } else {
+            quote::quote!(let #column_index = #column_type_token::new(
+                #column_index,
+                ::serde_columnar::ColumnAttr{
+                    index: #index_num,
                 }
             );)
         };
