@@ -5,6 +5,7 @@ use crate::{
 
 use super::ColumnTrait;
 
+/// The Column that is scheduled to be compressed using [BoolRleEncoder]
 #[derive(Debug)]
 pub struct BoolRleColumn {
     pub data: Vec<bool>,

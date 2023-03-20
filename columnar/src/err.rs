@@ -3,6 +3,7 @@ use std::io;
 use postcard::Error as PostcardError;
 use thiserror::Error;
 
+/// This is the error type used by `serde_columnar`
 #[derive(Error, Debug)]
 pub enum ColumnarError {
     #[error("serialize or deserialize error")]

@@ -9,6 +9,7 @@ pub trait DeltaRleable: Rleable + Copy + TryFrom<i128> + TryInto<i128> {}
 
 impl<T> DeltaRleable for T where T: Rleable + Copy + TryFrom<i128> + TryInto<i128> {}
 
+/// The Column that is scheduled to be compressed using [DeltaRleEncoder]
 #[derive(Debug)]
 pub struct DeltaRleColumn<T> {
     pub data: Vec<T>,

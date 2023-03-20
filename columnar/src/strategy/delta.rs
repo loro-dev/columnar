@@ -2,7 +2,7 @@ use crate::{ColumnarDecoder, ColumnarEncoder, ColumnarError};
 
 use super::{AnyRleDecoder, AnyRleEncoder};
 
-pub(crate) struct DeltaRleEncoder<'a> {
+pub struct DeltaRleEncoder<'a> {
     rle: AnyRleEncoder<'a, i128>,
     absolute_value: i128,
 }
@@ -27,7 +27,7 @@ impl<'a> DeltaRleEncoder<'a> {
     }
 }
 
-pub(crate) struct DeltaRleDecoder<'a, 'de> {
+pub struct DeltaRleDecoder<'a, 'de> {
     rle: AnyRleDecoder<'a, 'de, i128>,
     absolute_value: i128,
 }
@@ -71,14 +71,18 @@ mod test {
         use super::*;
         let mut columnar = ColumnarEncoder::new();
         let mut encoder = DeltaRleEncoder::new(&mut columnar);
-        encoder.append(0).unwrap();
         encoder.append(1).unwrap();
+        encoder.append(2).unwrap();
+        encoder.append(3).unwrap();
+        encoder.append(4).unwrap();
+        encoder.append(5).unwrap();
+        encoder.append(6).unwrap();
         encoder.finish().unwrap();
         let buf = columnar.into_bytes();
         println!("{:?}", buf);
         let mut decoder = ColumnarDecoder::new(&buf);
         let mut delta_rle_decoder = DeltaRleDecoder::new(&mut decoder);
         let values: Vec<u64> = delta_rle_decoder.decode().unwrap();
-        assert_eq!(values, vec![0, 1]);
+        assert_eq!(values, vec![1, 2, 3, 4, 5, 6]);
     }
 }

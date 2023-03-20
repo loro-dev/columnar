@@ -1,10 +1,11 @@
 mod delta;
-pub(crate) use delta::{DeltaRleDecoder, DeltaRleEncoder};
+pub use delta::{DeltaRleDecoder, DeltaRleEncoder};
 mod rle;
-pub(crate) use rle::{AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder};
+pub use rle::{AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder};
 
 use crate::ColumnarError;
 
+/// The enum of Strategy includes `Rle`/`BoolRle`/`DeltaRle`
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Strategy {

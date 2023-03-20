@@ -45,7 +45,7 @@ impl<'a> BoolRleEncoder<'a> {
     }
 }
 
-pub(crate) struct AnyRleEncoder<'a, T> {
+pub struct AnyRleEncoder<'a, T> {
     ser: &'a mut ColumnarEncoder,
     state: RleState<T>,
 }
@@ -145,7 +145,7 @@ enum RleState<T> {
     Run(T, usize),
 }
 
-pub(crate) struct AnyRleDecoder<'a, 'de, T> {
+pub struct AnyRleDecoder<'a, 'de, T> {
     de: &'a mut ColumnarDecoder<'de>,
     last_value: Option<T>,
     count: isize,
@@ -196,7 +196,7 @@ where
                     self.literal = false;
                 }
                 n if n < 0 => {
-                    self.count = n.abs() as isize;
+                    self.count = n.abs();
                     self.literal = true;
                 }
                 _ => return Err(ColumnarError::RleDecodeError("Invalid count".to_string())),
@@ -211,7 +211,7 @@ where
     }
 }
 
-pub(crate) struct BoolRleDecoder<'a, 'de> {
+pub struct BoolRleDecoder<'a, 'de> {
     de: &'a mut ColumnarDecoder<'de>,
     last_value: bool,
     count: usize,

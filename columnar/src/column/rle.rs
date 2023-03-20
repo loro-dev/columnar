@@ -10,6 +10,7 @@ use super::ColumnTrait;
 pub trait Rleable: Clone + PartialEq + Serialize + for<'de> Deserialize<'de> {}
 impl<T> Rleable for T where T: Clone + PartialEq + Serialize + for<'de> Deserialize<'de> {}
 
+/// The Column that is scheduled to be compressed using [AnyRleEncoder]
 #[derive(Debug)]
 pub struct RleColumn<T> {
     pub data: Vec<T>,

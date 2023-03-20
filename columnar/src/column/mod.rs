@@ -19,6 +19,9 @@ pub(crate) trait ColumnTrait {
         Self: Sized;
 }
 
+/// The attributes of a column
+///
+/// including compress config and some ones that may be used in the future.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnAttr {
     pub index: usize,
@@ -38,6 +41,7 @@ impl ColumnAttr {
     }
 }
 
+// TODO: remove this
 pub struct ColumnEncoder {
     ser: ColumnarEncoder,
 }
@@ -84,7 +88,8 @@ impl ColumnEncoder {
     }
 }
 
-pub(crate) struct ColumnDecoder<'b> {
+// TODO: remove this
+pub struct ColumnDecoder<'b> {
     original_bytes: &'b [u8],
 }
 

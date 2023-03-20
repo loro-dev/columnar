@@ -56,6 +56,7 @@ impl<'de> DeFlavor<'de> for Cursor<'de> {
     }
 }
 
+/// The decoder of columnar system
 pub struct ColumnarDecoder<'de> {
     de: Deserializer<'de, Cursor<'de>>,
 }
@@ -83,6 +84,7 @@ impl DerefMut for ColumnarDecoder<'_> {
     }
 }
 
+/// The encoder of columnar system
 pub struct ColumnarEncoder {
     ser: Serializer<AllocVec>,
 }

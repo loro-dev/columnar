@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 
+/// The wrapper of `Vec-like` container, we have implemented the `Serialize` and `Deserialize` for it.
+///
+/// When it is serialized or deserialized, it will call [`RowSer::serialize_columns()`] or [`RowDe::deserialize_columns()`]
 #[derive(Debug, PartialEq, Clone, Eq)]
 pub struct ColumnarVec<'c, T, IT>(pub Cow<'c, IT>)
 where
@@ -74,8 +77,9 @@ where
     }
 }
 
-// MapRow
-
+/// The wrapper of `Map-like` container, we have implemented the `Serialize` and `Deserialize` for it.
+///
+/// When it is serialized or deserialized, it will call [`KeyRowSer::serialize_columns()`] or [`KeyRowDe::deserialize_columns()`]
 #[derive(Debug, PartialEq, Clone, Eq)]
 pub struct ColumnarMap<'c, K, T, IT>(pub Cow<'c, IT>)
 where

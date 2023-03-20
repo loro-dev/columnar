@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// If a type implements [`RowSer`] and [`RowDe`] trait, it can be considered as a row of vec-like container.
 ///
-/// this trait can **be easily derived** by adding `#[columnar(vec)]` to the struct.
+/// this trait can **be easily derived** by adding `#[columnar(vec)]` to the struct or enum.
 ///
 /// For example, there is a struct `Data` has two fields `id` and `name`.
 ///
@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 /// -  [`serialize_columns()`]
 /// -  [`deserialize_columns()`]
 ///
-/// to convert the data into [`Column`]s and convert the [`Column`]s back to the original data.
+/// to convert the data into Columns and convert the Columns back to the original data.
 ///
 /// For example there is a container such as:
 ///
@@ -42,19 +42,19 @@ use serde::{Deserialize, Serialize};
 /// ```
 /// when we serialize the `Store`, `data` field will be converted into two columns:
 ///
-/// - ids: Vec<id> = vec![1, 2, 3] with Strategy::DeltaRle
-/// - names: Vec<name> = vec!["Alice", "Bob", "Mark"] without Strategy
+/// - ids: `Vec<id>` = vec![1, 2, 3] with Strategy::DeltaRle
+/// - names: `Vec<name>` = vec!["Alice", "Bob", "Mark"] without Strategy
 ///
-/// for `ids`, as [`Column`] type, they can be compressed by [`DeltaRle`] easily in [`ColumnEncoder`] system.
+/// for `ids`, as [`DeltaRleColumn`] type, they can be compressed by [`DeltaRle`] easily in [`ColumnEncoder`] system.
 ///
 /// # Note:
 ///
-/// [`RowSer`] trait has a generic type `IT`, which could be any container that can be IntoIterator<Item = &Self>
-/// and FromIterator<Self>, such as Vec<T>, SmallVec<T> and so on.
+/// [`RowSer`] trait has a generic type `IT`, which could be any container that can be `IntoIterator<Item = &Self>`
+/// and `FromIterator<Self>`, such as `Vec<T>`, `SmallVec<T>` and so on.
 ///
 /// [`serialize_columns()`]: RowSer::serialize_columns()
 /// [`deserialize_columns()`]: RowDe::deserialize_columns()
-/// [`Column`]: crate::column::Column
+/// [`DeltaRleColumn`]: crate::DeltaRleColumn
 /// [`DeltaRle`]: crate::strategy::DeltaRleEncoder
 /// [`ColumnEncoder`]: crate::column::ColumnEncoder
 pub trait RowSer<IT>: Sized + Serialize
@@ -67,6 +67,7 @@ where
         S: serde::Serializer;
 }
 
+/// If a type implements [`RowSer`] and [`RowDe`] trait, it can be considered as a row of vec-like container.
 pub trait RowDe<'de, IT>: Sized + Deserialize<'de>
 where
     IT: FromIterator<Self> + Clone,
@@ -78,9 +79,9 @@ where
         D: serde::Deserializer<'de>;
 }
 
-/// The **HashMap** version of [`KeyRowSer`] trait.
+/// The **Map** version of [`RowSer`] trait.
 ///
-/// Almost the same as [`KeyRowSer`], but additionally needs to convert arbitrary type K to Vec<K>.
+/// Almost the same as [`KeyRowSer`], but additionally needs to convert arbitrary type K to `Vec<K>`.
 ///
 pub trait KeyRowSer<K, IT>: Sized + Serialize
 where
@@ -93,6 +94,7 @@ where
         S: serde::Serializer;
 }
 
+/// The **Map** version of [`RowDe`] trait.
 pub trait KeyRowDe<'de, K, IT>: Sized + Deserialize<'de>
 where
     IT: FromIterator<(K, Self)> + Clone,
