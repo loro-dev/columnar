@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["leonzhao <leeeon233@gmail.com>", "zxch3n <remch183@outlook.com>"]
 license = "MIT OR Apache-2.0"
 description = "Easily convert Vector and HashMap structure data into Column-oriented data"
+readme = "README.md"
 keywords = [
     "columnar",
     "column_oriented",

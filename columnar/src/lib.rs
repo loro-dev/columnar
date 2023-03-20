@@ -1,6 +1,6 @@
 //! # Introduction
 //!
-//! `serde_columnar` is a crate that provides columnar storage for **List** and **Map** with fast serialization and deserialization capabilities.
+//! `serde_columnar` is a crate that provides columnar storage for **List** and **Map** with compressible serialization and deserialization capabilities.
 //!
 //! Columnar storage is very useful when you want to compress serialized data and you know that one or more fields of consecutive structs in the array have the same or equal difference values.
 //!
