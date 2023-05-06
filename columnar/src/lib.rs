@@ -116,6 +116,13 @@ pub use serde_columnar_derive::*;
 #[cfg(feature = "bench")]
 extern crate lazy_static;
 
+#[cfg(feature = "analyze")]
+mod analyze;
+#[cfg(feature = "analyze")]
+pub use analyze::{AnalyzeResult, AnalyzeResults, FieldAnalyze};
+#[cfg(feature = "analyze")]
+pub use serde_columnar_derive::FieldAnalyze;
+
 pub fn to_vec<T: Serialize>(val: &T) -> Result<Vec<u8>, ColumnarError> {
     let mut encoder = ColumnarEncoder::new();
     val.serialize(encoder.deref_mut())

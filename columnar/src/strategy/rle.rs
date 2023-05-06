@@ -27,11 +27,11 @@ impl<'a> BoolRleEncoder<'a> {
     }
 
     pub(crate) fn append(&mut self, value: bool) -> Result<(), ColumnarError> {
-        if *value.borrow() == self.last {
+        if value == self.last {
             self.count += 1;
         } else {
             self.count.serialize(self.ser.deref_mut())?;
-            self.last = *value.borrow();
+            self.last = value;
             self.count = 1;
         }
         Ok(())
