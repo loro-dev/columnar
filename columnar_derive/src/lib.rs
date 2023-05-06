@@ -20,6 +20,8 @@ use syn::{parse_macro_input, AttributeArgs, DeriveInput, Item};
 
 mod args;
 use args::{get_derive_args, get_field_args_add_serde_with_to_field};
+#[cfg(feature = "analyze")]
+mod analyze;
 mod attr;
 mod derive;
 
@@ -159,4 +161,19 @@ fn add_consume_columnar_attribute(input: &TokenStream) -> syn::Result<TokenStrea
 #[proc_macro_derive(__private_consume_columnar_attributes, attributes(columnar))]
 pub fn __private_consume_columnar_attributes(_: TokenStream) -> TokenStream {
     TokenStream::new()
+}
+
+#[cfg(feature = "analyze")]
+fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
+    let compile_errors = errors.iter().map(syn::Error::to_compile_error);
+    quote!(#(#compile_errors)*)
+}
+
+#[cfg(feature = "analyze")]
+#[proc_macro_derive(FieldAnalyze, attributes(analyze))]
+pub fn derive_field_analyze(input: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(input as DeriveInput);
+    analyze::expand_derive_analyze(&mut input)
+        .unwrap_or_else(to_compile_errors)
+        .into()
 }
