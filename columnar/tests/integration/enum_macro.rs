@@ -30,8 +30,8 @@ pub fn test_enum_macro_vec() {
     }
     let store = Enum::Vec(vec);
     let buf = to_vec(&store).unwrap();
-    println!("buf {:?}", &buf);
-    println!("buf len: {:?}", buf.len());
+    // println!("buf {:?}", &buf);
+    // println!("buf len: {:?}", buf.len());
     let store2 = from_bytes(&buf).unwrap();
     assert_eq!(store, store2);
 }
@@ -50,7 +50,7 @@ pub fn test_enum_macro_map() {
     }
     let store = Enum::Map(vec.into_iter().collect());
     let buf = to_vec(&store).unwrap();
-    println!("buf len: {:?}", buf.len());
+    // println!("buf len: {:?}", buf.len());
     let store2 = from_bytes(&buf).unwrap();
     assert_eq!(store, store2);
 }

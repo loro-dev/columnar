@@ -69,21 +69,29 @@ mod run {
     }
 
     pub fn postcard_ende(c: &mut Criterion) {
-        c.bench_function("postcard_ende", |b| {
+        c.bench_function("postcard_encode", |b| {
             b.iter(|| {
                 let bytes = postcard::to_allocvec(&*NORMAL_STORE).unwrap();
+            })
+        });
+        c.bench_function("postcard_decode", |b| {
+            let bytes = postcard::to_allocvec(&*NORMAL_STORE).unwrap();
+            b.iter(|| {
                 let store = postcard::from_bytes::<NormalStore>(&bytes).unwrap();
-                assert_eq!(store, *NORMAL_STORE);
             })
         });
     }
 
     pub fn bincode_ende(c: &mut Criterion) {
-        c.bench_function("bincode_ende", |b| {
+        c.bench_function("bincode_encode", |b| {
             b.iter(|| {
                 let bytes = bincode::serialize(&*NORMAL_STORE).unwrap();
+            })
+        });
+        c.bench_function("bincode_decode", |b| {
+            let bytes = bincode::serialize(&*NORMAL_STORE).unwrap();
+            b.iter(|| {
                 let store = bincode::deserialize::<NormalStore>(&bytes).unwrap();
-                assert_eq!(store, *NORMAL_STORE);
             })
         });
     }
