@@ -1,7 +1,6 @@
 use serde::Serialize;
 use serde_columnar::FieldAnalyze;
 
-// #[columnar]
 #[derive(Debug, Clone, FieldAnalyze, Serialize)]
 struct Foo {
     #[analyze]
