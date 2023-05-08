@@ -8,8 +8,8 @@ lazy_static! {
         let mut _data = Vec::new();
         for i in 0..10000 {
             _data.push(Data {
-                id: i,
-                name: format!("name"),
+                id: i / 50,
+                name: format!("name{}", i),
             });
         }
         VecStore { data: _data, id: 0 }
@@ -18,8 +18,8 @@ lazy_static! {
         let mut _data = Vec::new();
         for i in 0..10000 {
             _data.push(NormalData {
-                id: i,
-                name: format!("name"),
+                id: i / 50,
+                name: format!("name{}", i),
             });
         }
         NormalStore { data: _data, id: 0 }
