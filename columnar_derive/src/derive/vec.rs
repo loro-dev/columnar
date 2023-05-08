@@ -87,7 +87,8 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     );
     #[cfg(feature = "compress")]
     let compress_quote = field_arg.compress_args()?;
-    let row_content = if is_field_type_is_can_copy(field_arg)? {
+    let can_copy = is_field_type_is_can_copy(field_arg)?;
+    let row_content = if can_copy {
         quote::quote!(row.#field_name)
     } else if field_attr_ty.is_some() {
         match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
@@ -102,7 +103,12 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     } else {
         quote::quote!(std::borrow::Cow::Borrowed(&row.#field_name))
     };
-    let column_type_token = field_arg.get_strategy_column(quote::quote!(#field_type))?;
+    let this_ty = if can_copy{
+        quote::quote!(#field_type)
+    }else{
+        quote::quote!(std::borrow::Cow<#field_type>)
+    };
+    let column_type_token = field_arg.get_strategy_column(this_ty)?;
     #[cfg(feature = "compress")]
     let column_content_token = if field_arg.strategy.is_none() {
         quote::quote!()

@@ -8,8 +8,8 @@ lazy_static! {
         let mut _data = Vec::new();
         for i in 0..10000 {
             _data.push(Data {
-                id: i / 50,
-                name: format!("name{}", i),
+                id: i,
+                name: format!("name"),
             });
         }
         VecStore { data: _data, id: 0 }
@@ -18,8 +18,8 @@ lazy_static! {
         let mut _data = Vec::new();
         for i in 0..10000 {
             _data.push(NormalData {
-                id: i / 50,
-                name: format!("name{}", i),
+                id: i,
+                name: format!("name"),
             });
         }
         NormalStore { data: _data, id: 0 }
@@ -33,6 +33,7 @@ type ID = u64;
 pub struct Data {
     #[columnar(strategy = "DeltaRle", original_type = "u64")]
     id: ID,
+    #[columnar(strategy = "Rle")]
     name: String,
 }
 

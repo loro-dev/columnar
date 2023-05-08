@@ -131,7 +131,8 @@ fn generate_with_map_per_columns(
         columns_quote.push(quote::quote!(#column_index));
         let columns_type = quote::quote!(::std::vec::Vec<_>);
         columns_types.push(columns_type);
-        let cow_columns_field = if is_field_type_is_can_copy(args)? {
+        let can_copy = is_field_type_is_can_copy(args)?;
+        let cow_columns_field = if can_copy {
             quote::quote!(v.#field_name)
         } else if field_attr_ty.is_some() {
             match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
@@ -147,9 +148,13 @@ fn generate_with_map_per_columns(
             quote::quote!(::std::borrow::Cow::Borrowed(&v.#field_name))
         };
         cow_columns_fields.push(cow_columns_field);
-
+        let this_ty = if can_copy {
+            quote::quote!(#field_type)
+        } else {
+            quote::quote!(std::borrow::Cow<#field_type>)
+        };
         // real columns
-        let column_type_token = args.get_strategy_column(quote::quote!(#field_type))?;
+        let column_type_token = args.get_strategy_column(this_ty)?;
         #[cfg(feature = "compress")]
         let column_content_token = if args.strategy.is_none() {
             quote::quote!()
