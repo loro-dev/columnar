@@ -28,11 +28,12 @@ mod run {
         };
     }
 
-    #[columnar(vec)]
+    #[columnar(vec, ser, de)]
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct Data {
-        #[columnar(strategy = "Rle")]
+        #[columnar(strategy = "DeltaRle")]
         id: u64,
+        #[columnar(strategy = "Rle")]
         name: String,
     }
 
