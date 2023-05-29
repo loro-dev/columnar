@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_columnar::{columnar, from_bytes, to_vec};
 #[columnar(vec, map, ser, de)]
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 struct Data {
     id: u64,
     id2: u64,
@@ -15,7 +15,7 @@ struct Data {
     st: String,
 }
 
-#[columnar]
+#[columnar(ser, de)]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Store {
     #[columnar(type = "vec")]

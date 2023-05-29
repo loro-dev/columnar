@@ -53,7 +53,7 @@ pub struct VecStore {
     id: u64,
 }
 
-#[columnar]
+#[columnar(ser, de)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MapStore {
     #[columnar(type = "map")]
@@ -61,7 +61,7 @@ pub struct MapStore {
     id: u64,
 }
 
-#[columnar]
+#[columnar(ser, de)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NestedStore {
     #[columnar(type = "vec")]

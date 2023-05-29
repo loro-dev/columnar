@@ -57,7 +57,7 @@ pub struct NormalStore {
     pub id: u32,
 }
 
-#[columnar]
+#[columnar(ser, de)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NestedStore {
     #[columnar(type = "vec")]
