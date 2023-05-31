@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, hash::Hash};
 
 use serde::{Deserialize, Serialize};
 
@@ -107,7 +107,7 @@ where
     T: KeyRowSer<K, IT>,
     for<'a> &'a IT: IntoIterator<Item = (&'a K, &'a T)>,
     IT: FromIterator<(K, T)> + Clone,
-    K: Serialize + Eq + Clone,
+    K: Serialize + PartialEq + Eq + Hash + Clone,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -122,7 +122,7 @@ where
     T: KeyRowDe<'de, K, IT>,
     for<'a> &'a IT: IntoIterator<Item = (&'a K, &'a T)>,
     IT: FromIterator<(K, T)> + Clone,
-    K: Deserialize<'de> + Eq + Clone,
+    K: Deserialize<'de> + PartialEq + Eq + Hash + Clone,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
