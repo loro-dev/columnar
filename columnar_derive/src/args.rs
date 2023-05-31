@@ -30,6 +30,7 @@ pub struct CompressArgs {
     pub method: Option<String>,
 }
 
+#[cfg(feature = "compress")]
 #[derive(FromField, Debug)]
 #[darling(attributes(columnar))]
 pub struct FieldArgs {
@@ -51,12 +52,34 @@ pub struct FieldArgs {
     /// If skip, this field will be ignored.
     #[darling(default)]
     pub skip: bool,
-    #[cfg(feature = "compress")]
     pub compress: Option<Override<CompressArgs>>,
-    #[cfg(not(feature = "compress"))]
-    pub compress: Option<()>,
 }
 
+#[cfg(not(feature = "compress"))]
+#[derive(FromField, Debug)]
+#[darling(attributes(columnar))]
+pub struct FieldArgs {
+    pub ident: Option<syn::Ident>,
+    pub vis: syn::Visibility,
+    pub ty: syn::Type,
+    pub attrs: Vec<syn::Attribute>,
+    // custom attributes
+    /// The index of the field in the struct, starts from 0 default.
+    pub index: Option<usize>,
+    /// If optional, this field need to be compatible with the old or new version.
+    #[darling(default)]
+    pub optional: bool,
+    /// the strategy to convert the field values to a column.
+    pub strategy: Option<String>,
+    /// the type of the column format, vec or map.
+    #[darling(rename = "class")]
+    pub type_: Option<String>,
+    /// If skip, this field will be ignored.
+    #[darling(default)]
+    pub skip: bool,
+}
+
+#[cfg(feature = "compress")]
 #[derive(FromVariant, Debug)]
 #[darling(attributes(columnar))]
 pub struct VariantArgs {
@@ -77,6 +100,20 @@ pub struct VariantArgs {
     /// If skip, this field will be ignored.
     #[darling(default)]
     pub skip: bool,
+    pub compress: Option<Override<CompressArgs>>,
+}
+
+#[cfg(not(feature = "compress"))]
+#[derive(FromVariant, Debug)]
+#[darling(attributes(columnar))]
+pub struct VariantArgs {
+    // pub ident: syn::Ident,
+    // pub vis: syn::Visibility,
+    // pub ty: syn::Type,
+    pub attrs: Vec<syn::Attribute>,
+    /// the type of the column format, vec or map.
+    #[darling(rename = "class")]
+    pub type_: Option<String>,
 }
 
 pub enum AsType {
@@ -88,14 +125,14 @@ pub enum AsType {
 pub trait Args {
     fn ident(&self) -> Option<syn::Ident>;
     fn ty(&self) -> Option<syn::Type>;
-    fn attrs(&self) -> &Vec<syn::Attribute>;
+    fn attrs(&self) -> &[syn::Attribute];
     fn index(&self) -> Option<usize>;
     fn optional(&self) -> bool;
-    fn strategy(&self) -> Option<String>;
+    fn strategy(&self) -> &Option<String>;
     fn _type(&self) -> Option<AsType>;
     fn skip(&self) -> bool;
     #[cfg(feature = "compress")]
-    fn compress(&self) -> Option<Override<CompressArgs>>;
+    fn compress(&self) -> &Option<Override<CompressArgs>>;
     #[cfg(feature = "compress")]
     fn compress_args(&self) -> syn::Result<proc_macro2::TokenStream> {
         if let Some(compress) = self.compress() {
@@ -151,7 +188,7 @@ impl Args for FieldArgs {
     fn ty(&self) -> Option<syn::Type> {
         Some(self.ty.clone())
     }
-    fn attrs(&self) -> &Vec<syn::Attribute> {
+    fn attrs(&self) -> &[syn::Attribute] {
         &self.attrs
     }
     fn index(&self) -> Option<usize> {
@@ -160,8 +197,8 @@ impl Args for FieldArgs {
     fn optional(&self) -> bool {
         self.optional
     }
-    fn strategy(&self) -> Option<String> {
-        self.strategy.clone()
+    fn strategy(&self) -> &Option<String> {
+        &self.strategy
     }
 
     fn _type(&self) -> Option<AsType> {
@@ -189,17 +226,17 @@ impl Args for VariantArgs {
     fn ty(&self) -> Option<syn::Type> {
         None
     }
-    fn attrs(&self) -> &Vec<syn::Attribute> {
+    fn attrs(&self) -> &[syn::Attribute] {
         &self.attrs
     }
     fn index(&self) -> Option<usize> {
-        self.index
+        None
     }
     fn optional(&self) -> bool {
-        self.optional
+        false
     }
-    fn strategy(&self) -> Option<String> {
-        self.strategy.clone()
+    fn strategy(&self) -> &Option<String> {
+        &None
     }
     fn _type(&self) -> Option<AsType> {
         match self.type_.as_deref() {
@@ -210,12 +247,12 @@ impl Args for VariantArgs {
         }
     }
     fn skip(&self) -> bool {
-        self.skip
+        false
     }
 
     #[cfg(feature = "compress")]
     fn compress(&self) -> Option<Override<CompressArgs>> {
-        todo!()
+        self.compress.clone()
     }
 }
 
@@ -240,7 +277,14 @@ pub fn get_field_args_add_serde_with_to_field(
         syn::Data::Struct(syn::DataStruct {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
             ..
-        }) => Ok(Some(process_named_struct(named, derive_args)?)),
+        }) => {
+            let mut args = Vec::with_capacity(named.len());
+            for field in named.iter() {
+                let field_args = FieldArgs::from_field(field)?;
+                args.push(field_args);
+            }
+            Ok(Some(args))
+        }
         syn::Data::Enum(syn::DataEnum { variants, .. }) => {
             process_enum_variants(variants, derive_args)?;
             Ok(None)
@@ -252,32 +296,32 @@ pub fn get_field_args_add_serde_with_to_field(
     }
 }
 
-fn process_named_struct(
-    fields: &mut syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    derive_args: &DeriveArgs,
-) -> syn::Result<Vec<FieldArgs>> {
-    let mut index = 0;
-    let mut fields_args = Vec::with_capacity(fields.len());
-    for field in fields.iter_mut() {
-        let mut field_args = FieldArgs::from_field(field)?;
-        // skip
-        add_serde_skip(field, &field_args)?;
-        if field_args.skip {
-            fields_args.push(field_args);
-            continue;
-        }
-        // serde with
-        add_serde_with(field, &field_args, derive_args)?;
-        if let Some(_index) = field_args.index {
-            index = _index + 1;
-        } else {
-            field_args.index = Some(index);
-            index += 1;
-        }
-        fields_args.push(field_args);
-    }
-    Ok(fields_args)
-}
+// fn process_named_struct(
+//     fields: &mut syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+//      derive_args: &DeriveArgs,
+// ) -> syn::Result<Vec<FieldArgs>> {
+//     let mut index = 0;
+//     let mut fields_args = Vec::with_capacity(fields.len());
+//     for field in fields.iter_mut() {
+//         let mut field_args = FieldArgs::from_field(field)?;
+//         // skip
+//         add_serde_skip(field, &field_args)?;
+//         if field_args.skip {
+//             fields_args.push(field_args);
+//             continue;
+//         }
+//         // serde with
+//         add_serde_with(field, &field_args, derive_args)?;
+//         if let Some(_index) = field_args.index {
+//             index = _index + 1;
+//         } else {
+//             field_args.index = Some(index);
+//             index += 1;
+//         }
+//         fields_args.push(field_args);
+//     }
+//     Ok(fields_args)
+// }
 
 fn process_enum_variants(
     variants: &mut syn::punctuated::Punctuated<syn::Variant, syn::token::Comma>,
@@ -288,10 +332,10 @@ fn process_enum_variants(
         let field_args = VariantArgs::from_variant(variant)?;
         // skip
         add_serde_skip(variant, &field_args)?;
-        if field_args.skip {
-            fields_args.push(field_args);
-            continue;
-        }
+        // if field_args.skip {
+        //     fields_args.push(field_args);
+        //     continue;
+        // }
         // serde with
         add_serde_with(variant, &field_args, derive_args)?;
         fields_args.push(field_args);

@@ -182,7 +182,7 @@ pub mod row {
                     .collect::<::std::vec::Vec<_>>();
                 let column0 = ::serde_columnar::DeltaRleColumn::<ID>::new(
                     column0,
-                    ::serde_columnar::ColumnAttr { index: 0usize },
+                    ::serde_columnar::ColumnAttr { index: None },
                 );
                 let column1 = rows
                     .into_iter()
@@ -190,7 +190,7 @@ pub mod row {
                     .collect::<::std::vec::Vec<_>>();
                 let column1 = ::serde_columnar::RleColumn::<std::borrow::Cow<String>>::new(
                     column1,
-                    ::serde_columnar::ColumnAttr { index: 1usize },
+                    ::serde_columnar::ColumnAttr { index: None },
                 );
                 let mut seq_encoder = ser.serialize_seq(Some(2usize))?;
                 seq_encoder.serialize_element(&column0)?;
@@ -285,7 +285,7 @@ pub mod row {
                     .collect::<::std::vec::Vec<_>>();
                 let column0 = ::serde_columnar::DeltaRleColumn::<ID>::new(
                     column0,
-                    ::serde_columnar::ColumnAttr { index: 0usize },
+                    ::serde_columnar::ColumnAttr { index: None },
                 );
                 let column1 = rows
                     .into_iter()
@@ -293,7 +293,7 @@ pub mod row {
                     .collect::<::std::vec::Vec<_>>();
                 let column1 = ::serde_columnar::RleColumn::<std::borrow::Cow<String>>::new(
                     column1,
-                    ::serde_columnar::ColumnAttr { index: 1usize },
+                    ::serde_columnar::ColumnAttr { index: None },
                 );
 
                 // optional

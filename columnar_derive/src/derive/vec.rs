@@ -80,9 +80,9 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     let field_name = &field_arg.ident;
     let field_type = &field_arg.ty;
     let field_attr_ty = &field_arg.type_;
-    let index_num = field_arg.index.unwrap();
+    let index_num = field_arg.index;
     let column_index = syn::Ident::new(
-        &format!("column{}", index_num),
+        &format!("column_{}", field_name.as_ref().unwrap()),
         proc_macro2::Span::call_site(),
     );
     #[cfg(feature = "compress")]
@@ -118,7 +118,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
             #column_type_token::new(
             #column_index,
             ::serde_columnar::ColumnAttr{
-                index: #index_num,
+                index: None,
                 // strategy: #strategy,
                 
                 compress: #compress_quote,
@@ -133,7 +133,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
             #column_type_token::new(
             #column_index,
             ::serde_columnar::ColumnAttr{
-                index: #index_num,
+                index: None,
             }
         );)
     };
@@ -153,13 +153,18 @@ fn encode_per_column_to_ser(field_args: &Vec<FieldArgs>) -> syn::Result<proc_mac
     let mut field_len = field_args.len();
     let mut ser_elements = Vec::with_capacity(field_len);
     for field_arg in field_args.iter() {
+        let field_name = &field_arg.ident;
         if field_arg.skip {
             field_len -= 1;
             continue;
         }
-        let index = field_arg.index.unwrap();
-        let column_index =
-            syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
+        // TODO: index
+        let index = field_arg.index;
+
+        let column_index = syn::Ident::new(
+            &format!("column_{}", field_name.as_ref().unwrap()),
+            proc_macro2::Span::call_site(),
+        );
         let ser_element = quote::quote!(
             seq_encoder.serialize_element(&#column_index)?;
         );
@@ -225,9 +230,12 @@ fn generate_per_column_to_de_columns(
             continue;
         }
         let field_attr_ty = &args.type_;
-        let index = args.index.unwrap();
-        let column_index =
-            syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
+        // TODO: index
+        let index = args.index;
+        let column_index = syn::Ident::new(
+            &format!("column_{}", field_name.as_ref().unwrap()),
+            proc_macro2::Span::call_site(),
+        );
         columns_quote.push(quote::quote!(#column_index));
         let field_type = &args.ty;
         let is_num = args.strategy == Some("DeltaRle".to_string())

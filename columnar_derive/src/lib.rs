@@ -109,10 +109,11 @@ fn expand_columnar(args: Vec<NestedMeta>, mut st: DeriveInput) -> syn::Result<To
     let field_args = get_field_args_add_serde_with_to_field(&mut st, &derive_args)?;
     let input = quote::quote!(#st);
     if let Some(field_args) = field_args {
+        // struct
         let derive_trait_tokens = process_derive_args(&derive_args, &st, &field_args)?;
         Ok(quote!(#input #derive_trait_tokens).into())
     } else {
-        // enum 情况
+        // enum
         Ok(input.into())
     }
 }
@@ -141,7 +142,7 @@ fn add_consume_columnar_attribute(input: &TokenStream) -> syn::Result<TokenStrea
     let consume_columnar_attribute = syn::parse_quote!(
         #[derive(::serde_columnar::__private_consume_columnar_attributes)]
     );
-    let item: Item = syn::parse(input.clone()).unwrap();
+    let item: Item = syn::parse(input.clone())?;
     match item {
         Item::Struct(st) => {
             let mut st = st;

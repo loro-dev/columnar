@@ -20,7 +20,6 @@ pub struct Data {
     id7: (u16, i32),
     #[columnar(strategy = "BoolRle")]
     b: bool,
-    #[columnar(compress)]
     name: String,
     #[columnar(class = "vec")]
     vec: Vec<Data>,

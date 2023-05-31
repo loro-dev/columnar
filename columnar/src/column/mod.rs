@@ -25,25 +25,26 @@ pub(crate) trait ColumnTrait {
 #[cfg(feature = "compress")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnAttr {
-    pub index: usize,
+    pub index: Option<usize>,
     pub compress: Option<CompressConfig>,
 }
 
+// TODO: remove index
 #[cfg(not(feature = "compress"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnAttr {
-    pub index: usize,
+    pub index: Option<usize>,
 }
 
 impl ColumnAttr {
     pub(crate) fn empty() -> Self {
         #[cfg(feature = "compress")]
         return Self {
-            index: 0,
+            index: None,
             compress: None,
         };
         #[cfg(not(feature = "compress"))]
-        return Self { index: 0 };
+        return Self { index: None };
     }
 }
 
