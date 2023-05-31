@@ -13,9 +13,9 @@ struct Data {
 #[columnar(ser, de)]
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 enum Enum {
-    #[columnar(type = "vec")]
+    #[columnar(class = "vec")]
     Vec(Vec<Data>),
-    #[columnar(type = "map")]
+    #[columnar(class = "map")]
     Map(BTreeMap<u64, Data>),
 }
 

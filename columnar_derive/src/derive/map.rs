@@ -2,7 +2,7 @@ use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
-use super::utils::{add_generics_clause_to_where, is_field_type_is_can_copy};
+use super::utils::add_generics_clause_to_where;
 
 pub fn generate_derive_hashmap_row_ser(
     input: &DeriveInput,
@@ -121,7 +121,7 @@ fn generate_with_map_per_columns(
         }
         let field_name = &args.ident;
         let field_type = &args.ty;
-        let field_attr_ty = &args._type;
+        let field_attr_ty = &args.type_;
         #[cfg(feature = "compress")]
         let compress_quote = &args.compress_args()?;
         let index = args.index.unwrap();
@@ -131,7 +131,8 @@ fn generate_with_map_per_columns(
         columns_quote.push(quote::quote!(#column_index));
         let columns_type = quote::quote!(::std::vec::Vec<_>);
         columns_types.push(columns_type);
-        let can_copy = is_field_type_is_can_copy(args)?;
+        let can_copy = args.strategy == Some("DeltaRle".to_string())
+            || args.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(args)?;
         let cow_columns_field = if can_copy {
             quote::quote!(v.#field_name)
         } else if field_attr_ty.is_some() {
@@ -238,13 +239,14 @@ fn generate_map_per_column_to_de_columns(
             continue;
         }
         let field_type = &args.ty;
-        let field_attr_ty = &args._type;
+        let field_attr_ty = &args.type_;
         let index = args.index.unwrap();
         let column_index =
             syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
         columns_quote.push(quote::quote!(#column_index));
         field_names.push(quote::quote!(#field_name));
-        let is_num = is_field_type_is_can_copy(args)?;
+        let is_num = args.strategy == Some("DeltaRle".to_string())
+            || args.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(args)?;
         let column_type = if is_num {
             args.get_strategy_column(quote::quote!(#field_type))?
         } else if field_attr_ty.is_some() {

@@ -12,11 +12,12 @@ extern crate syn;
 extern crate proc_macro;
 extern crate proc_macro2;
 
+use darling::{export::NestedMeta, Error};
 use derive::process_derive_args;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_macro_input, AttributeArgs, DeriveInput, Item};
+use syn::{parse_macro_input, DeriveInput, Item};
 
 mod args;
 use args::{get_derive_args, get_field_args_add_serde_with_to_field};
@@ -76,13 +77,18 @@ mod derive;
 ///
 #[proc_macro_attribute]
 pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
-    let args: AttributeArgs = parse_macro_input!(attr as AttributeArgs);
+    let attr_args = match NestedMeta::parse_meta_list(attr.into()) {
+        Ok(v) => v,
+        Err(e) => {
+            return TokenStream::from(Error::from(e).write_errors());
+        }
+    };
     let input = match add_consume_columnar_attribute(&input) {
         Ok(v) => v,
         Err(e) => return TokenStream::from(e.to_compile_error()),
     };
     let st = parse_macro_input!(input as DeriveInput);
-    match expand_columnar(args, st) {
+    match expand_columnar(attr_args, st) {
         Ok(v) => v,
         Err(e) => e.to_compile_error().into(),
     }
@@ -94,9 +100,9 @@ pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
 ///    if there is a `type` attribute, the field will be added `#[serde(serialize_with=..., deserialize_with=...)]`.
 /// 2. generate `VecRow` and `MapRow` trait implementations for the struct.
 ///
-fn expand_columnar(args: AttributeArgs, mut st: DeriveInput) -> syn::Result<TokenStream> {
+fn expand_columnar(args: Vec<NestedMeta>, mut st: DeriveInput) -> syn::Result<TokenStream> {
     check_derive_serde(&st)?;
-    let derive_args = get_derive_args(args)?;
+    let derive_args = get_derive_args(&args)?;
     // iterate all fields to check if there is any `columnar` attribute
     // and parse all fields' `columnar` attributes to [`FieldArgs`].
     // add [`serde_with`] attributes to the fields.

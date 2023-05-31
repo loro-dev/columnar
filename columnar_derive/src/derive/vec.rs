@@ -2,7 +2,7 @@ use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
-use super::utils::{add_generics_clause_to_where, is_field_type_is_can_copy};
+use super::utils::add_generics_clause_to_where;
 
 pub fn generate_derive_vec_row_ser(
     input: &DeriveInput,
@@ -79,7 +79,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     }
     let field_name = &field_arg.ident;
     let field_type = &field_arg.ty;
-    let field_attr_ty = &field_arg._type;
+    let field_attr_ty = &field_arg.type_;
     let index_num = field_arg.index.unwrap();
     let column_index = syn::Ident::new(
         &format!("column{}", index_num),
@@ -87,7 +87,8 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     );
     #[cfg(feature = "compress")]
     let compress_quote = field_arg.compress_args()?;
-    let can_copy = is_field_type_is_can_copy(field_arg)?;
+    let can_copy = field_arg.strategy == Some("DeltaRle".to_string())
+        || field_arg.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(field_arg)?;
     let row_content = if can_copy {
         quote::quote!(row.#field_name)
     } else if field_attr_ty.is_some() {
@@ -103,9 +104,9 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     } else {
         quote::quote!(std::borrow::Cow::Borrowed(&row.#field_name))
     };
-    let this_ty = if can_copy{
+    let this_ty = if can_copy {
         quote::quote!(#field_type)
-    }else{
+    } else {
         quote::quote!(std::borrow::Cow<#field_type>)
     };
     let column_type_token = field_arg.get_strategy_column(this_ty)?;
@@ -123,7 +124,6 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
                 compress: #compress_quote,
             }
         );)
-        
     };
     #[cfg(not(feature = "compress"))]
     let column_content_token = if field_arg.strategy.is_none() {
@@ -136,7 +136,6 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
                 index: #index_num,
             }
         );)
-        
     };
 
     let ret = quote::quote!(
@@ -225,13 +224,14 @@ fn generate_per_column_to_de_columns(
             ));
             continue;
         }
-        let field_attr_ty = &args._type;
+        let field_attr_ty = &args.type_;
         let index = args.index.unwrap();
         let column_index =
             syn::Ident::new(&format!("column{}", index), proc_macro2::Span::call_site());
         columns_quote.push(quote::quote!(#column_index));
         let field_type = &args.ty;
-        let is_num = is_field_type_is_can_copy(args)?;
+        let is_num = args.strategy == Some("DeltaRle".to_string())
+            || args.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(args)?;
         let column_type_token = args.get_strategy_column(quote::quote!(#field_type))?;
         let row_content = if is_num {
             column_type_token

@@ -1,8 +1,9 @@
+use darling::ast::NestedMeta;
 #[allow(unused_imports)]
 use darling::{util::Override, Error as DarlingError, FromField, FromMeta, FromVariant};
 #[allow(unused_imports)]
 use proc_macro2::{Span, TokenStream};
-use syn::{AttributeArgs, DeriveInput};
+use syn::DeriveInput;
 
 use crate::attr::{add_serde_skip, add_serde_with};
 
@@ -16,6 +17,8 @@ pub struct DeriveArgs {
     pub(crate) ser: bool,
     #[darling(default)]
     pub(crate) de: bool,
+    #[darling(default)]
+    pub(crate) compatible: bool,
 }
 #[cfg(feature = "compress")]
 #[derive(FromMeta, Debug, Clone)]
@@ -37,13 +40,14 @@ pub struct FieldArgs {
     // custom attributes
     /// The index of the field in the struct, starts from 0 default.
     pub index: Option<usize>,
+    /// If optional, this field need to be compatible with the old or new version.
+    #[darling(default)]
+    pub optional: bool,
     /// the strategy to convert the field values to a column.
     pub strategy: Option<String>,
-    /// the original type of the field, in order to adjust whether the field type is number type, if field type is alias.
-    pub original_type: Option<syn::Type>,
     /// the type of the column format, vec or map.
-    #[darling(rename = "type")]
-    pub _type: Option<String>,
+    #[darling(rename = "class")]
+    pub type_: Option<String>,
     /// If skip, this field will be ignored.
     #[darling(default)]
     pub skip: bool,
@@ -63,13 +67,13 @@ pub struct VariantArgs {
     // custom attributes
     /// The index of the field in the struct, starts from 0 default.
     pub index: Option<usize>,
+    #[darling(default)]
+    pub optional: bool,
     /// the strategy to convert the field values to a column.
     pub strategy: Option<String>,
-    /// the original type of the field, in order to adjust whether the field type is number type, if field type is alias.
-    pub original_type: Option<syn::Type>,
     /// the type of the column format, vec or map.
-    #[darling(rename = "type")]
-    pub _type: Option<String>,
+    #[darling(rename = "class")]
+    pub type_: Option<String>,
     /// If skip, this field will be ignored.
     #[darling(default)]
     pub skip: bool,
@@ -86,8 +90,8 @@ pub trait Args {
     fn ty(&self) -> Option<syn::Type>;
     fn attrs(&self) -> &Vec<syn::Attribute>;
     fn index(&self) -> Option<usize>;
+    fn optional(&self) -> bool;
     fn strategy(&self) -> Option<String>;
-    fn original_type(&self) -> Option<syn::Type>;
     fn _type(&self) -> Option<AsType>;
     fn skip(&self) -> bool;
     #[cfg(feature = "compress")]
@@ -153,14 +157,15 @@ impl Args for FieldArgs {
     fn index(&self) -> Option<usize> {
         self.index
     }
+    fn optional(&self) -> bool {
+        self.optional
+    }
     fn strategy(&self) -> Option<String> {
         self.strategy.clone()
     }
-    fn original_type(&self) -> Option<syn::Type> {
-        self.original_type.clone()
-    }
+
     fn _type(&self) -> Option<AsType> {
-        match self._type.as_deref() {
+        match self.type_.as_deref() {
             Some("vec") => Some(AsType::Vec),
             Some("map") => Some(AsType::Map),
             Some(_) => Some(AsType::Other),
@@ -190,14 +195,14 @@ impl Args for VariantArgs {
     fn index(&self) -> Option<usize> {
         self.index
     }
+    fn optional(&self) -> bool {
+        self.optional
+    }
     fn strategy(&self) -> Option<String> {
         self.strategy.clone()
     }
-    fn original_type(&self) -> Option<syn::Type> {
-        self.original_type.clone()
-    }
     fn _type(&self) -> Option<AsType> {
-        match self._type.as_deref() {
+        match self.type_.as_deref() {
             Some("vec") => Some(AsType::Vec),
             Some("map") => Some(AsType::Map),
             Some(_) => Some(AsType::Other),
@@ -214,13 +219,13 @@ impl Args for VariantArgs {
     }
 }
 
-pub fn get_derive_args(args: AttributeArgs) -> syn::Result<DeriveArgs> {
-    match DeriveArgs::from_list(&args) {
+pub fn get_derive_args(args: &[NestedMeta]) -> syn::Result<DeriveArgs> {
+    match DeriveArgs::from_list(args) {
         Ok(v) => Ok(v),
         Err(e) => {
             eprintln!("get_derive_args error: {}", e);
             Err(DarlingError::unsupported_format(
-                "columnar only supports attributes with `vec`, `map` and `ser`, `de`",
+                "columnar only supports attributes with `compatible`, `vec`, `map` and `ser`, `de`",
             )
             .into())
         }

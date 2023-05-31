@@ -22,11 +22,17 @@ pub(crate) trait ColumnTrait {
 /// The attributes of a column
 ///
 /// including compress config and some ones that may be used in the future.
+#[cfg(feature = "compress")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnAttr {
     pub index: usize,
-    #[cfg(feature = "compress")]
     pub compress: Option<CompressConfig>,
+}
+
+#[cfg(not(feature = "compress"))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColumnAttr {
+    pub index: usize,
 }
 
 impl ColumnAttr {

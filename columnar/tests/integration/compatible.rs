@@ -1,7 +1,10 @@
 #[cfg(test)]
 pub mod table {
+    use std::collections::HashMap;
+
     use serde::de::Error as DeError;
     use serde::de::Visitor;
+    use serde::ser::SerializeSeq;
     use serde::ser::{Error as SerError, SerializeTuple};
     use serde::{Deserialize, Serialize};
 
@@ -26,13 +29,9 @@ pub mod table {
         where
             S: serde::Serializer,
         {
-            let mut tuple = serializer.serialize_tuple(4)?;
-            tuple.serialize_element(&0u8)?;
-            let index_0_bytes = postcard::to_allocvec(&self.data).map_err(S::Error::custom)?;
-            tuple.serialize_element(&index_0_bytes)?;
-            tuple.serialize_element(&1u8)?;
-            let index_1_bytes = postcard::to_allocvec(&self.id).map_err(S::Error::custom)?;
-            tuple.serialize_element(&index_1_bytes)?;
+            let mut tuple = serializer.serialize_seq(Some(2))?;
+            tuple.serialize_element(&self.data)?;
+            tuple.serialize_element(&self.id)?;
             tuple.end()
         }
     }
@@ -42,16 +41,11 @@ pub mod table {
         where
             S: serde::Serializer,
         {
-            let mut tuple = serializer.serialize_tuple(5)?;
-            tuple.serialize_element(&0u8)?;
-            let index_0_bytes = postcard::to_allocvec(&self.data).map_err(S::Error::custom)?;
-            tuple.serialize_element(&index_0_bytes)?;
-            tuple.serialize_element(&1u8)?;
-            let index_1_bytes = postcard::to_allocvec(&self.id).map_err(S::Error::custom)?;
-            tuple.serialize_element(&index_1_bytes)?;
-            tuple.serialize_element(&2u8)?;
-            let index_2_bytes = postcard::to_allocvec(&self.id2).map_err(S::Error::custom)?;
-            tuple.serialize_element(&index_2_bytes)?;
+            let mut tuple = serializer.serialize_seq(Some(3))?;
+            tuple.serialize_element(&self.data)?;
+            tuple.serialize_element(&self.id)?;
+            let index_0_bytes = postcard::to_allocvec(&self.id2).map_err(S::Error::custom)?;
+            tuple.serialize_element(&(0u8, index_0_bytes))?;
             tuple.end()
         }
     }
@@ -71,25 +65,17 @@ pub mod table {
                 where
                     A: serde::de::SeqAccess<'de>,
                 {
-                    let _index0: u8 = seq
+                    let data = seq
                         .next_element()?
-                        .ok_or_else(|| A::Error::custom("index0"))?;
-                    let index0_bytes: Vec<u8> = seq
-                        .next_element()?
-                        .ok_or_else(|| A::Error::custom("index0_bytes"))?;
-                    let data: Vec<u64> =
-                        postcard::from_bytes(&index0_bytes).map_err(A::Error::custom)?;
-                    let _index1: u8 = seq
-                        .next_element()?
-                        .ok_or_else(|| A::Error::custom("index1"))?;
-                    let index1_bytes: Vec<u8> = seq
-                        .next_element()?
-                        .ok_or_else(|| A::Error::custom("index1_bytes"))?;
-                    let id: u64 = postcard::from_bytes(&index1_bytes).map_err(A::Error::custom)?;
+                        .ok_or_else(|| A::Error::custom("data"))?;
+                    let id = seq.next_element()?.ok_or_else(|| A::Error::custom("id"))?;
+                    while let Ok(Some((_index, _bytes))) = seq.next_element::<(u8, Vec<u8>)>() {
+                        // ignore
+                    }
                     Ok(VecStore { data, id })
                 }
             }
-            deserializer.deserialize_tuple(4, VecStoreVisitor)
+            deserializer.deserialize_seq(VecStoreVisitor)
         }
     }
 
@@ -109,41 +95,26 @@ pub mod table {
                 where
                     A: serde::de::SeqAccess<'de>,
                 {
-                    let _index0: u8 = seq
+                    let data = seq
                         .next_element()?
-                        .ok_or_else(|| A::Error::custom("index0"))?;
-                    let index0_bytes: Vec<u8> = seq.next_element()?.unwrap();
-                    let data: Vec<u64> =
-                        postcard::from_bytes(&index0_bytes).map_err(A::Error::custom)?;
-                    let _index1: u8 = seq.next_element()?.unwrap();
-                    let index1_bytes: Vec<u8> = seq
-                        .next_element()?
-                        .ok_or_else(|| A::Error::custom("index1_bytes"))?;
-                    let id: u64 = postcard::from_bytes(&index1_bytes).map_err(A::Error::custom)?;
+                        .ok_or_else(|| A::Error::custom("data"))?;
+                    let id = seq.next_element()?.ok_or_else(|| A::Error::custom("id"))?;
                     // optional
-                    let index2: Result<Option<u8>, A::Error> = seq.next_element();
-                    let id2: Option<u64> = match index2 {
-                        Ok(Some(_index2)) => {
-                            let index2_bytes: Vec<u8> = seq
-                                .next_element()?
-                                .ok_or_else(|| A::Error::custom("index2_bytes"))?;
-                            Ok(Some(
-                                postcard::from_bytes(&index2_bytes).map_err(A::Error::custom)?,
-                            ))
-                        }
-                        Ok(None) => Ok(None),
-                        Err(e) => {
-                            if e.to_string() == "Hit the end of buffer, expected more data" {
-                                Ok(None)
-                            } else {
-                                Err(e)
-                            }
-                        }
-                    }?;
+                    let mut mapping = HashMap::new();
+
+                    while let Ok(Some((index, bytes))) = seq.next_element::<(u8, Vec<u8>)>() {
+                        // ignore
+                        mapping.insert(index, bytes);
+                    }
+                    let id2 = if let Some(bytes) = mapping.remove(&0) {
+                        Some(postcard::from_bytes(&bytes).map_err(A::Error::custom)?)
+                    } else {
+                        Default::default()
+                    };
                     Ok(MoreVecStore { data, id, id2 })
                 }
             }
-            deserializer.deserialize_tuple(6, MoreVecStoreVisitor)
+            deserializer.deserialize_seq(MoreVecStoreVisitor)
         }
     }
 
@@ -423,7 +394,7 @@ pub mod row {
     #[columnar(ser, de)]
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct VecStore {
-        #[columnar(type = "vec")]
+        #[columnar(class = "vec")]
         pub data: Vec<Data>,
         pub id: u32,
     }
@@ -431,7 +402,7 @@ pub mod row {
     #[columnar(ser, de)]
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct NewVecStore {
-        #[columnar(type = "vec")]
+        #[columnar(class = "vec")]
         pub data: Vec<NewData>,
         pub id: u32,
     }

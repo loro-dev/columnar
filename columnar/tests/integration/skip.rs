@@ -18,9 +18,9 @@ struct Data {
 #[columnar(ser, de)]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Store {
-    #[columnar(type = "vec")]
+    #[columnar(class = "vec")]
     vec: Vec<Data>,
-    #[columnar(type = "map")]
+    #[columnar(class = "map")]
     map: HashMap<u64, Data>,
 }
 
