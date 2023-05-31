@@ -10,16 +10,17 @@ struct Data {
     s: String,
 }
 
+// TODO: index checker
+
 #[columnar(compatible, vec, ser, de)]
 #[derive(Debug)]
 struct Store {
     id: u64,
     s: String,
-    #[columnar(class = "vec")]
+    #[columnar(class = "vec", optional, index = 0)]
     data: Vec<Data>,
-    #[columnar(class = "map")]
+    #[columnar(class = "map", optional, index = 1)]
     map: HashMap<String, Data>,
 }
-
 
 fn main() {}

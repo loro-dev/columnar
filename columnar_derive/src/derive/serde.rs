@@ -13,6 +13,7 @@ pub fn generate_compatible_ser(
     let ret = quote::quote!(
         const _:()={
             use ::serde::ser::SerializeSeq;
+            use ::serde::ser::Error;
             impl #impl_generics ::serde::ser::Serialize for #struct_name_ident #ty_generics #where_clause {
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                 where
@@ -185,7 +186,7 @@ fn generate_per_element_de(
             if !add_mapping {
                 elements.push(quote::quote!(
                     let mut mapping = HashMap::new();
-                    while let Ok(Some((index, bytes))) = seq.next_element::<(u8, Vec<u8>)>() {
+                    while let Ok(Some((index, bytes))) = seq.next_element::<(usize, Vec<u8>)>() {
                         // ignore
                         mapping.insert(index, bytes);
                     }
