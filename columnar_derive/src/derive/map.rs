@@ -8,21 +8,24 @@ pub fn generate_derive_hashmap_row_ser(
     input: &DeriveInput,
     field_args: &Vec<FieldArgs>,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let fields_len = field_args.len();
     let struct_name_ident = &input.ident;
     let generics_params_to_modify = input.generics.clone();
     let mut impl_generics = input.generics.clone();
-    let (impl_generics, ty_generics, where_clause) =
-        process_map_generics(&generics_params_to_modify, &mut impl_generics, true);
+    let (impl_generics, ty_generics, where_clause) = process_map_generics(
+        struct_name_ident,
+        &generics_params_to_modify,
+        &mut impl_generics,
+        true,
+    );
 
     // generate ser columns
     let columns = generate_with_map_per_columns(field_args)?;
     let ser_quote = encode_map_per_column_to_ser(field_args)?;
-    // let de_columns = generate_map_per_column_to_de_columns(field_args)?;
 
     let ret = quote::quote!(
         const _:()={
-            use serde::ser::SerializeTuple;
+            use ::serde::ser::Error;
+            use ::serde::ser::SerializeSeq;
             use serde_columnar::MultiUnzip;
             #[automatically_derived]
             impl #impl_generics ::serde_columnar::KeyRowSer<K, IT> for #struct_name_ident #ty_generics #where_clause {
@@ -44,24 +47,43 @@ pub fn generate_derive_hashmap_row_de(
     input: &DeriveInput,
     field_args: &Vec<FieldArgs>,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let fields_len = field_args.len();
     let struct_name_ident = &input.ident;
     let generics_params_to_modify = input.generics.clone();
     let mut impl_generics = input.generics.clone();
-    let (impl_generics, ty_generics, where_clause) =
-        process_map_generics(&generics_params_to_modify, &mut impl_generics, false);
+    let (impl_generics, ty_generics, where_clause) = process_map_generics(
+        struct_name_ident,
+        &generics_params_to_modify,
+        &mut impl_generics,
+        false,
+    );
 
-    let de_columns = generate_map_per_column_to_de_columns(field_args)?;
+    let de_columns = generate_map_per_column_to_de_columns(field_args, input)?;
 
     let ret = quote::quote!(
         const _:()={
-            use serde::ser::SerializeTuple;
+           use ::serde::de::Error as DeError;
+            use ::serde::de::Visitor;
+            use ::std::collections::HashMap;
             #[automatically_derived]
             impl #impl_generics ::serde_columnar::KeyRowDe<'de, K, IT> for #struct_name_ident #ty_generics #where_clause {
-
                 fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
                 where D: serde::Deserializer<'de>{
-                    #de_columns
+                    struct DeVisitor<K, IT>((::std::marker::PhantomData<K>, ::std::marker::PhantomData<IT>));
+                    impl #impl_generics Visitor<'de> for DeVisitor<K, IT> #where_clause{
+                        type Value = IT;
+                        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                            formatter.write_str("Map de")
+                        }
+
+                        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                        where
+                            A: ::serde::de::SeqAccess<'de>,
+                        {
+                            #de_columns
+                        }
+                    }
+                    let visitor = DeVisitor((::std::marker::PhantomData, ::std::marker::PhantomData));
+                    de.deserialize_seq(visitor)
                 }
             }
         };
@@ -70,6 +92,7 @@ pub fn generate_derive_hashmap_row_de(
 }
 
 fn process_map_generics<'a>(
+    struct_name: &proc_macro2::Ident,
     generics_params_to_modify: &'a Generics,
     impl_generics: &'a mut Generics,
     is_ser: bool,
@@ -79,7 +102,7 @@ fn process_map_generics<'a>(
         true => {
             let where_clause = add_generics_clause_to_where(
                 vec![
-                    syn::parse_quote! {for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c Self)>},
+                    syn::parse_quote! {for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c #struct_name)>},
                     syn::parse_quote! {K: Serialize + Eq + Clone},
                 ],
                 where_clause,
@@ -92,7 +115,7 @@ fn process_map_generics<'a>(
         false => {
             let where_clause = add_generics_clause_to_where(
                 vec![
-                    syn::parse_quote! {IT: FromIterator<(K, Self)> + Clone},
+                    syn::parse_quote! {IT: FromIterator<(K, #struct_name)> + Clone},
                     syn::parse_quote! {K: Deserialize<'de> + Eq + Clone},
                 ],
                 where_clause,
@@ -116,22 +139,19 @@ fn generate_with_map_per_columns(
     let mut real_columns = Vec::with_capacity(field_args.len());
 
     for args in field_args.iter() {
-        if args.skip {
-            continue;
-        }
+        // if args.skip {
+        //     continue;
+        // }
         let field_name = &args.ident;
         let field_type = &args.ty;
         let field_attr_ty = &args.type_;
         #[cfg(feature = "compress")]
         let compress_quote = &args.compress_args()?;
-        // TODO: index
-        let index = args.index;
-        // let index_num = syn::LitInt::new(&index.to_string(), proc_macro2::Span::call_site());
-        let column_index = syn::Ident::new(
+        let column_name = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
             proc_macro2::Span::call_site(),
         );
-        columns_quote.push(quote::quote!(#column_index));
+        columns_quote.push(quote::quote!(#column_name));
         let columns_type = quote::quote!(::std::vec::Vec<_>);
         columns_types.push(columns_type);
         let can_copy = args.strategy == Some("DeltaRle".to_string())
@@ -176,8 +196,8 @@ fn generate_with_map_per_columns(
         let column_content_token = if args.strategy.is_none() {
             quote::quote!()
         } else {
-            quote::quote!(let #column_index = #column_type_token::new(
-                #column_index,
+            quote::quote!(let #column_name = #column_type_token::new(
+                #column_name,
                 ::serde_columnar::ColumnAttr{
                     // TODO: index
                     index: None,
@@ -201,28 +221,39 @@ fn generate_with_map_per_columns(
 fn encode_map_per_column_to_ser(
     field_args: &Vec<FieldArgs>,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let mut field_len = field_args.len();
+    let field_len = field_args.len();
     let mut ser_elements = Vec::with_capacity(field_len);
     for args in field_args {
         let field_name = &args.ident;
-        if args.skip {
-            field_len -= 1;
-            continue;
-        }
-        // TODO: index
+        let optional = args.optional;
         let index = args.index;
+        // if args.skip {
+        //     field_len -= 1;
+        //     continue;
+        // }
         let column_index = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
             proc_macro2::Span::call_site(),
         );
-        let ser_element = quote::quote!(
-            seq_encoder.serialize_element(&#column_index)?;
-        );
+        let ser_element = if !optional {
+            quote::quote!(
+                seq_encoder.serialize_element(&#column_index)?;
+            )
+        } else {
+            let index = index.unwrap();
+            quote::quote!(
+                {
+                    let bytes = ::postcard::to_allocvec(&#column_index).map_err(S::Error::custom)?;
+                    seq_encoder.serialize_element(&(#index , bytes))?;
+                }
+
+            )
+        };
         ser_elements.push(ser_element);
     }
 
     let ret = quote::quote!(
-        let mut seq_encoder = ser.serialize_tuple(#field_len + 1)?;
+        let mut seq_encoder = ser.serialize_seq(Some(#field_len + 1))?;
         seq_encoder.serialize_element(&vec_k)?;
         #(#ser_elements)*
         seq_encoder.end()
@@ -232,8 +263,12 @@ fn encode_map_per_column_to_ser(
 
 fn generate_map_per_column_to_de_columns(
     field_args: &Vec<FieldArgs>,
+    input: &DeriveInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
+    let struct_name = &input.ident;
     let field_len = field_args.len();
+    let mut add_mapping = false;
+    let mut elements = Vec::with_capacity(field_len);
     let mut columns_quote = Vec::with_capacity(field_len);
     let mut columns_types = Vec::with_capacity(field_len);
     let mut field_names = Vec::with_capacity(field_len);
@@ -241,15 +276,15 @@ fn generate_map_per_column_to_de_columns(
     let mut into_iter_quote = Vec::with_capacity(field_len);
     for (_, args) in field_args.iter().enumerate() {
         let field_name = &args.ident;
-        // TODO: no named struct
-        if args.skip {
-            field_names_build.push(quote::quote!(#field_name: ::std::default::Default::default()));
-            continue;
-        }
-        let field_type = &args.ty;
-        let field_attr_ty = &args.type_;
-        // TODO: index
+        let optional = args.optional;
         let index = args.index;
+        let field_type = &args.ty;
+        let class = &args.type_;
+        // TODO: no named struct
+        // if args.skip {
+        //     field_names_build.push(quote::quote!(#field_name: ::std::default::Default::default()));
+        //     continue;
+        // }
         let column_index = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
             proc_macro2::Span::call_site(),
@@ -260,8 +295,8 @@ fn generate_map_per_column_to_de_columns(
             || args.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(args)?;
         let column_type = if is_num {
             args.get_strategy_column(quote::quote!(#field_type))?
-        } else if field_attr_ty.is_some() {
-            match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
+        } else if class.is_some() {
+            match class.as_ref().unwrap_or(&"".to_string()).as_str() {
                 "vec" => {
                     args.get_strategy_column(
                         quote::quote!(::serde_columnar::ColumnarVec<_, #field_type>),
@@ -274,24 +309,52 @@ fn generate_map_per_column_to_de_columns(
                     )?
                     // quote::quote!(::serde_columnar::Column<::serde_columnar::ColumnarMap<_, _, #field_type>>)
                 }
-                _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
+                _ => return Err(syn::Error::new_spanned(class, "unsupported type")),
             }
         } else {
             args.get_strategy_column(quote::quote!(::std::borrow::Cow<#field_type>))?
         };
+
+        let q = if !optional {
+            quote::quote!(
+                let #column_index: #column_type = seq.next_element()?.ok_or_else(||A::Error::custom("DeserializeUnexpectedEnd"))?;
+                column_data_len = ::std::cmp::max(column_data_len, #column_index.len());
+            )
+        } else {
+            if !add_mapping {
+                elements.push(quote::quote!(
+                    let mut mapping = HashMap::new();
+                    while let Ok(Some((index, bytes))) = seq.next_element::<(usize, Vec<u8>)>() {
+                        // ignore
+                        mapping.insert(index, bytes);
+                    }
+                ));
+                add_mapping = true;
+            }
+            let index = index.unwrap();
+            quote::quote!(
+                let #column_index: #column_type = if let Some(bytes) = mapping.remove(&#index){
+                    postcard::from_bytes(&bytes).map_err(A::Error::custom)?
+                }else{
+                    vec![Default::default(); column_data_len].into()
+                };
+            )
+        };
+        elements.push(q);
+
         columns_types.push(column_type);
 
         let field_name_build = if is_num {
             quote::quote!(#field_name: #field_name)
-        } else if field_attr_ty.is_some() {
-            match field_attr_ty.as_ref().unwrap_or(&"".to_string()).as_str() {
+        } else if class.is_some() {
+            match class.as_ref().unwrap_or(&"".to_string()).as_str() {
                 "vec" => {
                     quote::quote!(#field_name: #field_name.into_vec())
                 }
                 "map" => {
                     quote::quote!(#field_name: #field_name.into_map())
                 }
-                _ => return Err(syn::Error::new_spanned(field_attr_ty, "unsupported type")),
+                _ => return Err(syn::Error::new_spanned(class, "unsupported type")),
             }
         } else {
             quote::quote!(#field_name: #field_name.into_owned())
@@ -309,10 +372,11 @@ fn generate_map_per_column_to_de_columns(
     }
 
     let ret = quote::quote!(
-        let (vec_k, #(#columns_quote),*): (::std::vec::Vec<_>, #(#columns_types),*) =
-            ::serde::de::Deserialize::deserialize(de)?;
+        let mut column_data_len: usize = 0;
+        let vec_k: ::std::vec::Vec<_> = seq.next_element()?.ok_or_else(||A::Error::custom("DeserializeUnexpectedEnd"))?;
+        #(#elements)*;
         let ans: ::std::vec::Vec<_> = ::serde_columnar::izip!(#(#into_iter_quote),*)
-            .map(|(#(#field_names),*)| Self{
+            .map(|(#(#field_names),*)| #struct_name{
                 #(#field_names_build),*
             }).collect();
         let ans = vec_k.into_iter().zip(ans).collect();

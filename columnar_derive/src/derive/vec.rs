@@ -79,9 +79,9 @@ fn process_vec_generics<'a>(
 }
 
 fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro2::TokenStream> {
-    if field_arg.skip {
-        return Ok(quote::quote! {});
-    }
+    // if field_arg.skip {
+    //     return Ok(quote::quote! {});
+    // }
     let field_name = &field_arg.ident;
     let field_type = &field_arg.ty;
     let field_attr_ty = &field_arg.type_;
@@ -159,10 +159,11 @@ fn encode_per_column_to_ser(field_args: &Vec<FieldArgs>) -> syn::Result<proc_mac
         let field_name = &args.ident;
         let optional = args.optional;
         let index = args.index;
-        if args.skip {
-            field_len -= 1;
-            continue;
-        }
+        // TODO: feat skip
+        // if args.skip {
+        //     field_len -= 1;
+        //     continue;
+        // }
         let column_index = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
             proc_macro2::Span::call_site(),
@@ -194,7 +195,6 @@ pub fn generate_derive_vec_row_de(
     input: &DeriveInput,
     field_args: &Vec<FieldArgs>,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let fields_len = field_args.len();
     let struct_name_ident = &input.ident;
     let generics_params_to_modify = input.generics.clone();
     let mut impl_generics = input.generics.clone();
@@ -261,12 +261,12 @@ fn generate_per_column_to_de_columns(
         let field_type = &args.ty;
         let class = &args.type_;
 
-        if args.skip {
-            field_names_build.push(quote::quote!(
-                #field_name: ::std::default::Default::default()
-            ));
-            continue;
-        }
+        // if args.skip {
+        //     field_names_build.push(quote::quote!(
+        //         #field_name: ::std::default::Default::default()
+        //     ));
+        //     continue;
+        // }
 
         let column_index = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
@@ -276,7 +276,7 @@ fn generate_per_column_to_de_columns(
         let is_num = args.strategy == Some("DeltaRle".to_string())
             || args.strategy == Some("BoolRle".to_string());
         let column_type_token = args.get_strategy_column(quote::quote!(#field_type))?;
-        let row_content = if is_num {
+        let column_type = if is_num {
             column_type_token
         } else if class.is_some() {
             match class.as_ref().unwrap_or(&"".to_string()).as_str() {
@@ -298,7 +298,7 @@ fn generate_per_column_to_de_columns(
 
         let q = if !optional {
             quote::quote!(
-                let #column_index: #row_content = seq.next_element()?.ok_or_else(||A::Error::custom("DeserializeUnexpectedEnd"))?;
+                let #column_index: #column_type = seq.next_element()?.ok_or_else(||A::Error::custom("DeserializeUnexpectedEnd"))?;
                 column_data_len = ::std::cmp::max(column_data_len, #column_index.len());
             )
         } else {
@@ -315,7 +315,7 @@ fn generate_per_column_to_de_columns(
             // have checked before
             let index = index.unwrap();
             quote::quote!(
-                let #column_index: #row_content = if let Some(bytes) = mapping.remove(&#index){
+                let #column_index: #column_type = if let Some(bytes) = mapping.remove(&#index){
                     postcard::from_bytes(&bytes).map_err(A::Error::custom)?
                 }else{
                     vec![Default::default(); column_data_len].into()
@@ -324,7 +324,7 @@ fn generate_per_column_to_de_columns(
         };
         elements.push(q);
 
-        columns_types.push(row_content);
+        columns_types.push(column_type);
         let into_element = if args.strategy.is_none() {
             quote::quote!(#column_index.into_iter())
         } else {
