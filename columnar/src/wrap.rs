@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 
+// TODO: remove clone
+
 /// The wrapper of `Vec-like` container, we have implemented the `Serialize` and `Deserialize` for it.
 ///
 /// When it is serialized or deserialized, it will call [`RowSer::serialize_columns()`] or [`RowDe::deserialize_columns()`]
@@ -131,5 +133,27 @@ where
         Ok(ColumnarMap(Cow::Owned(T::deserialize_columns(
             deserializer,
         )?)))
+    }
+}
+
+impl<'c, T, IT> Default for ColumnarVec<'c, T, IT>
+where
+    IT: FromIterator<T> + Clone + Default,
+    for<'a> &'a IT: IntoIterator<Item = &'a T>,
+{
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<'de, 'c, K, T, IT> Default for ColumnarMap<'c, K, T, IT>
+where
+    T: KeyRowDe<'de, K, IT>,
+    for<'a> &'a IT: IntoIterator<Item = (&'a K, &'a T)>,
+    IT: FromIterator<(K, T)> + Clone + Default,
+    K: Deserialize<'de> + PartialEq + Eq + Hash + Clone,
+{
+    fn default() -> Self {
+        Self(Default::default())
     }
 }

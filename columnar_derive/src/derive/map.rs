@@ -26,7 +26,7 @@ pub fn generate_derive_hashmap_row_ser(
             use serde_columnar::MultiUnzip;
             #[automatically_derived]
             impl #impl_generics ::serde_columnar::KeyRowSer<K, IT> for #struct_name_ident #ty_generics #where_clause {
-                const FIELD_NUM: usize = #fields_len;
+
                 fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
                 where
                     S: serde::Serializer,
@@ -58,7 +58,7 @@ pub fn generate_derive_hashmap_row_de(
             use serde::ser::SerializeTuple;
             #[automatically_derived]
             impl #impl_generics ::serde_columnar::KeyRowDe<'de, K, IT> for #struct_name_ident #ty_generics #where_clause {
-                const FIELD_NUM: usize = #fields_len;
+
                 fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
                 where D: serde::Deserializer<'de>{
                     #de_columns

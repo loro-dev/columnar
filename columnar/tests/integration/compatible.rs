@@ -150,257 +150,43 @@ pub mod table {
 
 #[cfg(test)]
 pub mod row {
+    use std::collections::HashMap;
+
     use serde::de::Visitor;
     use serde::{Deserialize, Serialize};
     use serde_columnar::columnar;
     type ID = u64;
 
-    // #[columnar(vec, ser, de)]
+    #[columnar(vec, ser, de)]
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct Data {
-        // #[columnar(strategy = "DeltaRle", original_type = "u64")]
+        #[columnar(strategy = "DeltaRle")]
         id: ID,
-        // #[columnar(strategy = "Rle")]
+        #[columnar(strategy = "Rle", optional, index = 0)]
         name: String,
     }
 
-    const _: () = {
-        use serde::ser::SerializeSeq;
-        #[automatically_derived]
-        impl<IT> ::serde_columnar::RowSer<IT> for Data
-        where
-            for<'c> &'c IT: IntoIterator<Item = &'c Self>,
-        {
-            const FIELD_NUM: usize = 2usize;
-            fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
-            where
-                S: serde::ser::Serializer,
-            {
-                let column0 = rows
-                    .into_iter()
-                    .map(|row| row.id)
-                    .collect::<::std::vec::Vec<_>>();
-                let column0 = ::serde_columnar::DeltaRleColumn::<ID>::new(
-                    column0,
-                    ::serde_columnar::ColumnAttr { index: None },
-                );
-                let column1 = rows
-                    .into_iter()
-                    .map(|row| std::borrow::Cow::Borrowed(&row.name))
-                    .collect::<::std::vec::Vec<_>>();
-                let column1 = ::serde_columnar::RleColumn::<std::borrow::Cow<String>>::new(
-                    column1,
-                    ::serde_columnar::ColumnAttr { index: None },
-                );
-                let mut seq_encoder = ser.serialize_seq(Some(2usize))?;
-                seq_encoder.serialize_element(&column0)?;
-                seq_encoder.serialize_element(&column1)?;
-                seq_encoder.end()
-            }
-        }
-    };
-    const _: () = {
-        #[automatically_derived]
-        impl<'de, IT> ::serde_columnar::RowDe<'de, IT> for Data
-        where
-            IT: FromIterator<Self> + Clone,
-        {
-            const FIELD_NUM: usize = 2usize;
-            fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct DataVisitor<IT>(::std::marker::PhantomData<IT>);
-                impl<'de, IT> Visitor<'de> for DataVisitor<IT>
-                where
-                    IT: FromIterator<Data>,
-                {
-                    type Value = IT;
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                        formatter.write_str("Data")
-                    }
-
-                    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                    where
-                        A: serde::de::SeqAccess<'de>,
-                    {
-                        let column0: ::serde_columnar::DeltaRleColumn<ID> =
-                            seq.next_element()?.unwrap();
-                        let column1: ::serde_columnar::RleColumn<::std::borrow::Cow<String>> =
-                            seq.next_element()?.unwrap();
-                        // maybe optional
-                        // match index {
-                        //     Ok(_index) => {
-                        //         let _: Vec<u8> = seq.next_element()?.unwrap();
-                        //     }
-                        //     Err(_) => {}
-                        // };
-                        while let Ok(Some(_index)) = seq.next_element::<u8>() {
-                            let _: Vec<u8> = seq.next_element()?.unwrap();
-                        }
-                        let ans = ::serde_columnar::izip!(
-                            column0.data.into_iter(),
-                            column1.data.into_iter()
-                        )
-                        .map(|(id, name)| Data {
-                            id: id,
-                            name: name.into_owned(),
-                        })
-                        .collect();
-                        Ok(ans)
-                    }
-                }
-                let visitor = DataVisitor(::std::marker::PhantomData);
-                de.deserialize_seq(visitor)
-            }
-        }
-    };
-
-    // #[columnar(vec, ser, de)]
+    #[columnar(vec, ser, de)]
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct NewData {
-        // #[columnar(strategy = "DeltaRle", original_type = "u64")]
+        #[columnar(strategy = "DeltaRle")]
         id: ID,
-        // #[columnar(strategy = "Rle")]
+        #[columnar(strategy = "Rle", optional, index = 0)]
         name: String,
-        // #[columnar(optional)]
+        #[columnar(optional, index = 1)]
         id2: Option<u64>,
     }
 
-    const _: () = {
-        use serde::ser::SerializeSeq;
-        #[automatically_derived]
-        impl<IT> ::serde_columnar::RowSer<IT> for NewData
-        where
-            for<'c> &'c IT: IntoIterator<Item = &'c Self>,
-        {
-            const FIELD_NUM: usize = 3usize;
-            fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
-            where
-                S: serde::ser::Serializer,
-            {
-                let column0 = rows
-                    .into_iter()
-                    .map(|row| row.id)
-                    .collect::<::std::vec::Vec<_>>();
-                let column0 = ::serde_columnar::DeltaRleColumn::<ID>::new(
-                    column0,
-                    ::serde_columnar::ColumnAttr { index: None },
-                );
-                let column1 = rows
-                    .into_iter()
-                    .map(|row| std::borrow::Cow::Borrowed(&row.name))
-                    .collect::<::std::vec::Vec<_>>();
-                let column1 = ::serde_columnar::RleColumn::<std::borrow::Cow<String>>::new(
-                    column1,
-                    ::serde_columnar::ColumnAttr { index: None },
-                );
-
-                // optional
-
-                let column2 = rows
-                    .into_iter()
-                    .map(|row| std::borrow::Cow::Borrowed(&row.id2))
-                    .collect::<::std::vec::Vec<_>>();
-                let mut seq_encoder = ser.serialize_seq(Some(4usize))?;
-                seq_encoder.serialize_element(&column0)?;
-                seq_encoder.serialize_element(&column1)?;
-                seq_encoder.serialize_element(&0u8)?;
-                // let col2_bytes = postcard::to_allocvec(&column2).map_err(S::Error::custom)?;
-                seq_encoder.serialize_element(&column2)?;
-                seq_encoder.end()
-            }
-        }
-    };
-    const _: () = {
-        use serde::ser::SerializeTuple;
-        #[automatically_derived]
-        impl<'de, IT> ::serde_columnar::RowDe<'de, IT> for NewData
-        where
-            IT: FromIterator<Self> + Clone,
-        {
-            const FIELD_NUM: usize = 3usize;
-            fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct NewDataVisitor<IT>(::std::marker::PhantomData<IT>);
-                impl<'de, IT> Visitor<'de> for NewDataVisitor<IT>
-                where
-                    IT: FromIterator<NewData>,
-                {
-                    type Value = IT;
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                        formatter.write_str("NewData")
-                    }
-
-                    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                    where
-                        A: serde::de::SeqAccess<'de>,
-                    {
-                        let column0: ::serde_columnar::DeltaRleColumn<ID> =
-                            seq.next_element()?.unwrap();
-                        let column1: ::serde_columnar::RleColumn<::std::borrow::Cow<String>> =
-                            seq.next_element()?.unwrap();
-                        // optional
-                        let index = seq.next_element::<u8>();
-                        let column2: Option<::std::vec::Vec<::std::borrow::Cow<Option<u64>>>> =
-                            match index {
-                                Ok(Some(_index2)) => Ok(Some(seq.next_element()?.unwrap())),
-                                Ok(None) => Ok(None),
-                                Err(e) => {
-                                    if e.to_string() == "Hit the end of buffer, expected more data"
-                                    {
-                                        Ok(None)
-                                    } else {
-                                        Err(e)
-                                    }
-                                }
-                            }?;
-                        if let Some(column2) = column2 {
-                            let ans = ::serde_columnar::izip!(
-                                column0.data.into_iter(),
-                                column1.data.into_iter(),
-                                column2.into_iter()
-                            )
-                            .map(|(id, name, id2)| NewData {
-                                id: id,
-                                name: name.into_owned(),
-                                id2: id2.into_owned(),
-                            })
-                            .collect();
-                            Ok(ans)
-                        } else {
-                            let ans = ::serde_columnar::izip!(
-                                column0.data.into_iter(),
-                                column1.data.into_iter()
-                            )
-                            .map(|(id, name)| NewData {
-                                id: id,
-                                name: name.into_owned(),
-                                id2: None,
-                            })
-                            .collect();
-                            Ok(ans)
-                        }
-                    }
-                }
-                let visitor = NewDataVisitor(::std::marker::PhantomData);
-                de.deserialize_seq(visitor)
-            }
-        }
-    };
-
-    #[columnar(ser, de)]
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+    #[columnar(compatible, ser, de)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct VecStore {
         #[columnar(class = "vec")]
         pub data: Vec<Data>,
         pub id: u32,
     }
 
-    #[columnar(ser, de)]
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+    #[columnar(compatible, ser, de)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct NewVecStore {
         #[columnar(class = "vec")]
         pub data: Vec<NewData>,
@@ -439,6 +225,8 @@ pub mod row {
             id: 1,
         };
         let new_bytes = serde_columnar::to_vec(&new_store).unwrap();
+        let new = serde_columnar::from_bytes::<NewVecStore>(&new_bytes).unwrap();
+        assert_eq!(new, new_store);
         let old_new = serde_columnar::from_bytes::<VecStore>(&new_bytes).unwrap();
         assert_eq!(store, old_new);
     }

@@ -3,11 +3,13 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_columnar::columnar;
 
-#[columnar(map, vec, ser, de)]
+#[columnar(vec, map, ser, de)]
 #[derive(Debug, Serialize, PartialEq, Deserialize, Clone)]
 struct Data {
     id: u64,
     s: String,
+    #[columnar(optional, index = 0)]
+    name: String,
 }
 
 // TODO: index checker

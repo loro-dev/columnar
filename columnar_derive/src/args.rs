@@ -283,6 +283,7 @@ pub fn get_field_args_add_serde_with_to_field(
                 let field_args = FieldArgs::from_field(field)?;
                 args.push(field_args);
             }
+            check_args_validate(&args)?;
             Ok(Some(args))
         }
         syn::Data::Enum(syn::DataEnum { variants, .. }) => {
@@ -341,4 +342,39 @@ fn process_enum_variants(
         fields_args.push(field_args);
     }
     Ok(fields_args)
+}
+
+pub fn check_args_validate(field_args: &[FieldArgs]) -> syn::Result<()> {
+    // if some fields is not optional, but it appears after some optional fields, then we need to throw error
+    let mut start_optional = false;
+    for args in field_args {
+        let field_name = &args.ident;
+        let optional = args.optional;
+        let index = args.index;
+        if start_optional && !optional {
+            return Err(syn::Error::new_spanned(
+                field_name,
+                "optional field must be placed after non-optional field",
+            ));
+        }
+        if optional {
+            start_optional = true;
+            if index.is_none() {
+                return Err(syn::Error::new_spanned(
+                    field_name,
+                    "optional field must have index",
+                ));
+            }
+        };
+
+        let strategy = &args.strategy;
+        let class = &args.type_;
+        if strategy.is_some() && class.is_some() {
+            return Err(syn::Error::new_spanned(
+                field_name,
+                "strategy and class cannot be set at the same time",
+            ));
+        }
+    }
+    Ok(())
 }

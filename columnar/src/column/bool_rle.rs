@@ -9,12 +9,18 @@ use super::ColumnTrait;
 #[derive(Debug)]
 pub struct BoolRleColumn {
     pub data: Vec<bool>,
-    attr: ColumnAttr,
+    pub attr: ColumnAttr,
 }
 
 impl BoolRleColumn {
     pub fn new(data: Vec<bool>, attr: ColumnAttr) -> Self {
         Self { data, attr }
+    }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

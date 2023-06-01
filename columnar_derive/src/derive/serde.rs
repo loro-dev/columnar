@@ -1,5 +1,7 @@
 use crate::args::FieldArgs;
-use syn::{DeriveInput, Generics, ImplGenerics, TypeGenerics, WhereClause};
+use syn::{DeriveInput, Generics, ImplGenerics};
+
+// TODO: args.skip
 
 pub fn generate_compatible_ser(
     input: &DeriveInput,
@@ -19,7 +21,6 @@ pub fn generate_compatible_ser(
                 where
                     S: ::serde::ser::Serializer,
                 {
-                    // TODO: don't serialize the field if its value is default
                     let mut seq = serializer.serialize_seq(Some(#fields_len))?;
                     #(#per_field_ser)*
                     seq.end()
@@ -36,22 +37,12 @@ fn generate_per_element_ser(
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {
     let field_len = field_args.len();
     let mut elements = Vec::with_capacity(field_len);
-    // if some fields is not optional, but it appears after some optional fields, then we need to throw error
-    let mut start_optional = false;
     for args in field_args {
         let field_name = &args.ident;
         let field_type = &args.ty;
         let optional = args.optional;
         let index = args.index;
-        // TODO: type vec map need wrapper
         let class = &args.type_;
-        if start_optional && !optional {
-            return Err(syn::Error::new_spanned(
-                field_name,
-                "optional field must be placed after non-optional field",
-            ));
-        }
-
         let after_wrapper_field = if let Some(type_) = class {
             match type_.as_str() {
                 "vec" => {
@@ -65,23 +56,16 @@ fn generate_per_element_ser(
         } else {
             quote::quote!(&self.#field_name)
         };
-
         let e = if !optional {
             quote::quote!(
                 seq.serialize_element(#after_wrapper_field)?;
             )
         } else {
-            start_optional = true;
-            if let Some(index) = index {
-                quote::quote!(
-                    seq.serialize_element(&(#index, ::postcard::to_allocvec(#after_wrapper_field).map_err(S::Error::custom)?))?;
-                )
-            } else {
-                return Err(syn::Error::new_spanned(
-                    field_name,
-                    "optional field must have index",
-                ));
-            }
+            // have checked before
+            let index = index.unwrap();
+            quote::quote!(
+                seq.serialize_element(&(#index, ::postcard::to_allocvec(#after_wrapper_field).map_err(S::Error::custom)?))?;
+            )
         };
         elements.push(e);
     }
@@ -145,7 +129,6 @@ fn generate_per_element_de(
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {
     let field_len = field_args.len();
     let mut elements = Vec::with_capacity(field_len);
-    let mut start_optional = false;
     let mut add_mapping = false;
     for args in field_args {
         let field_name = &args.ident;
@@ -153,12 +136,6 @@ fn generate_per_element_de(
         let index = args.index;
         let field_type = &args.ty;
         let class = &args.type_;
-        if start_optional && !optional {
-            return Err(syn::Error::new_spanned(
-                field_name,
-                "optional field must be placed after non-optional field",
-            ));
-        }
         let e = if !optional {
             if let Some(type_) = class {
                 match type_.as_str() {
@@ -182,7 +159,6 @@ fn generate_per_element_de(
                 )
             }
         } else {
-            start_optional = true;
             if !add_mapping {
                 elements.push(quote::quote!(
                     let mut mapping = HashMap::new();
@@ -194,45 +170,40 @@ fn generate_per_element_de(
                 ));
                 add_mapping = true;
             }
-            if let Some(index) = index {
-                if let Some(type_) = class {
-                    match type_.as_str() {
-                        "vec" => {
-                            quote::quote!(
-                                let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                                    let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?;
-                                    wrapper.into_vec()
-                                }else{
-                                    Default::default()
-                                };
-                            )
-                        }
-                        "map" => {
-                            quote::quote!(
-                                let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                                    let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?;
-                                    wrapper.into_map()
-                                }else{
-                                    Default::default()
-                                };
-                            )
-                        }
-                        _ => return Err(syn::Error::new_spanned(class, "unsupported type")),
+            // have checked before
+            let index = index.unwrap();
+            if let Some(type_) = class {
+                match type_.as_str() {
+                    "vec" => {
+                        quote::quote!(
+                            let #field_name = if let Some(bytes) = mapping.remove(&#index){
+                                let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?;
+                                wrapper.into_vec()
+                            }else{
+                                Default::default()
+                            };
+                        )
                     }
-                } else {
-                    quote::quote!(
-                        let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                            ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?
-                        }else{
-                            Default::default()
-                        };
-                    )
+                    "map" => {
+                        quote::quote!(
+                            let #field_name = if let Some(bytes) = mapping.remove(&#index){
+                                let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?;
+                                wrapper.into_map()
+                            }else{
+                                Default::default()
+                            };
+                        )
+                    }
+                    _ => return Err(syn::Error::new_spanned(class, "unsupported type")),
                 }
             } else {
-                return Err(syn::Error::new_spanned(
-                    field_name,
-                    "optional field must have index",
-                ));
+                quote::quote!(
+                    let #field_name = if let Some(bytes) = mapping.remove(&#index){
+                        ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?
+                    }else{
+                        Default::default()
+                    };
+                )
             }
         };
         elements.push(e);
