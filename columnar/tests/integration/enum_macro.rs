@@ -5,7 +5,7 @@ use serde_columnar::{columnar, from_bytes, to_vec};
 #[columnar(vec, map, ser, de)]
 #[derive(PartialEq, Debug, Clone)]
 struct Data {
-    #[columnar(compress, strategy = "DeltaRle")]
+    #[columnar(strategy = "DeltaRle")]
     id: u64,
     s: String,
 }
