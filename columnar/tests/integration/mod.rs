@@ -1,3 +1,4 @@
+pub mod attribute;
 pub mod compatible;
 pub mod enum_macro;
 pub mod fuzz_debug;

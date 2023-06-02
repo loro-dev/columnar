@@ -1,7 +1,5 @@
-use crate::args::FieldArgs;
+use crate::{args::FieldArgs, derive::utils::generate_generics_phantom};
 use syn::{DeriveInput, Generics, ImplGenerics};
-
-// TODO: args.skip
 
 pub fn generate_compatible_ser(
     input: &DeriveInput,
@@ -76,7 +74,6 @@ pub fn generate_compatible_de(
     input: &DeriveInput,
     field_args: &Vec<FieldArgs>,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    // let fields_len = field_args.len();
     let struct_name_ident = &input.ident;
     let generics_params_to_modify = input.generics.clone();
     let mut g_clone = input.generics.clone();
@@ -84,25 +81,26 @@ pub fn generate_compatible_de(
     let impl_generics = add_de(&mut g_clone);
     let per_field_de = generate_per_element_de(field_args)?;
     let field_names = field_args.iter().map(|args| &args.ident);
+    let phantom_data_fields = generate_generics_phantom(&input.generics);
     let ret = quote::quote!(
         const _:()={
             use ::std::collections::HashMap;
             use ::serde::de::Visitor;
             use ::serde::de::Error as DeError;
-            impl #impl_generics ::serde::de::Deserialize<'de> for #struct_name_ident #ty_generics #where_clause {
-                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            impl #impl_generics ::serde::de::Deserialize<'__de> for #struct_name_ident #ty_generics #where_clause {
+                fn deserialize<__D>(deserializer: __D) -> Result<Self, __D::Error>
                 where
-                    D: serde::Deserializer<'de>,
+                    __D: serde::Deserializer<'__de>,
                 {
-                    struct DeVisitor;
-                    impl<'de> Visitor<'de> for DeVisitor {
+                    struct DeVisitor #ty_generics ((#phantom_data_fields));
+                    impl #impl_generics Visitor<'__de> for DeVisitor #ty_generics #where_clause {
                         type Value = #struct_name_ident #ty_generics;
                         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                             formatter.write_str("a sequence")
                         }
-                        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                        fn visit_seq<__A>(self, mut seq: __A) -> Result<Self::Value, __A::Error>
                         where
-                            A: serde::de::SeqAccess<'de>,
+                            __A: serde::de::SeqAccess<'__de>,
                         {
                             #(#per_field_de)*
                             Ok(#struct_name_ident {
@@ -110,7 +108,7 @@ pub fn generate_compatible_de(
                             })
                         }
                     }
-                    deserializer.deserialize_seq(DeVisitor)
+                    deserializer.deserialize_seq(DeVisitor(Default::default()))
                 }
             }
         };
@@ -119,7 +117,7 @@ pub fn generate_compatible_de(
 }
 
 fn add_de(impl_generics: &mut Generics) -> ImplGenerics {
-    impl_generics.params.push(syn::parse_quote! { 'de });
+    impl_generics.params.push(syn::parse_quote! { '__de });
     let (impl_generics, _, _) = impl_generics.split_for_impl();
     impl_generics
 }
@@ -141,13 +139,13 @@ fn generate_per_element_de(
                 match type_.as_str() {
                     "vec" => {
                         quote::quote!(
-                            let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = seq.next_element()?.ok_or_else(|| A::Error::custom("DeserializeUnexpectedEnd"))?;
+                            let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
                             let #field_name = wrapper.into_vec();
                         )
                     }
                     "map" => {
                         quote::quote!(
-                            let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = seq.next_element()?.ok_or_else(|| A::Error::custom("DeserializeUnexpectedEnd"))?;
+                            let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
                             let #field_name = wrapper.into_map();
                         )
                     }
@@ -155,7 +153,7 @@ fn generate_per_element_de(
                 }
             } else {
                 quote::quote!(
-                let #field_name = seq.next_element()?.ok_or_else(|| A::Error::custom("DeserializeUnexpectedEnd"))?;
+                let #field_name = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
                 )
             }
         } else {
@@ -177,7 +175,7 @@ fn generate_per_element_de(
                     "vec" => {
                         quote::quote!(
                             let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                                let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?;
+                                let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = ::postcard::from_bytes(&bytes).map_err(__A::Error::custom)?;
                                 wrapper.into_vec()
                             }else{
                                 Default::default()
@@ -187,7 +185,7 @@ fn generate_per_element_de(
                     "map" => {
                         quote::quote!(
                             let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                                let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?;
+                                let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = ::postcard::from_bytes(&bytes).map_err(__A::Error::custom)?;
                                 wrapper.into_map()
                             }else{
                                 Default::default()
@@ -199,7 +197,7 @@ fn generate_per_element_de(
             } else {
                 quote::quote!(
                     let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                        ::postcard::from_bytes(&bytes).map_err(A::Error::custom)?
+                        ::postcard::from_bytes(&bytes).map_err(__A::Error::custom)?
                     }else{
                         Default::default()
                     };

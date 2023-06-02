@@ -1,6 +1,4 @@
 {
   "rust-analyzer.showUnlinkedFileNotification": false,
-  "cSpell.words": [
-    "Rleable"
-  ]
+  "cSpell.words": ["insta", "Rleable"]
 }
