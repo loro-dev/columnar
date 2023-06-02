@@ -2,7 +2,7 @@ use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
-use super::utils::add_generics_clause_to_where;
+use super::utils::{add_generics_clause_to_where, generate_generics_phantom};
 
 pub fn generate_derive_hashmap_row_ser(
     input: &DeriveInput,
@@ -28,11 +28,11 @@ pub fn generate_derive_hashmap_row_ser(
             use ::serde::ser::SerializeSeq;
             use serde_columnar::MultiUnzip;
             #[automatically_derived]
-            impl #impl_generics ::serde_columnar::KeyRowSer<K, IT> for #struct_name_ident #ty_generics #where_clause {
+            impl #impl_generics ::serde_columnar::KeyRowSer<__K, __IT> for #struct_name_ident #ty_generics #where_clause {
 
-                fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
+                fn serialize_columns<__S>(rows: &__IT, ser: __S) -> std::result::Result<__S::Ok, __S::Error>
                 where
-                    S: ::serde::Serializer,
+                    __S: ::serde::Serializer,
                 {
                     #columns
                     #ser_quote
@@ -56,6 +56,15 @@ pub fn generate_derive_hashmap_row_de(
         &mut impl_generics,
         false,
     );
+    let mut generics_params_add_it_k = input.generics.clone();
+    generics_params_add_it_k
+        .params
+        .push(syn::parse_quote! { __IT });
+    generics_params_add_it_k
+        .params
+        .push(syn::parse_quote! { __K });
+    let (_, visitor_ty_generics, _) = generics_params_add_it_k.split_for_impl();
+    let phantom_data_fields = generate_generics_phantom(&generics_params_add_it_k);
 
     let de_columns = generate_map_per_column_to_de_columns(field_args, input)?;
 
@@ -65,24 +74,24 @@ pub fn generate_derive_hashmap_row_de(
             use ::serde::de::Visitor;
             use ::std::collections::HashMap;
             #[automatically_derived]
-            impl #impl_generics ::serde_columnar::KeyRowDe<'de, K, IT> for #struct_name_ident #ty_generics #where_clause {
-                fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
-                where D: ::serde::Deserializer<'de>{
-                    struct DeVisitor<K, IT>((::std::marker::PhantomData<K>, ::std::marker::PhantomData<IT>));
-                    impl #impl_generics Visitor<'de> for DeVisitor<K, IT> #where_clause{
-                        type Value = IT;
+            impl #impl_generics ::serde_columnar::KeyRowDe<'__de, __K, __IT> for #struct_name_ident #ty_generics #where_clause {
+                fn deserialize_columns<__D>(de: __D) -> Result<__IT, __D::Error>
+                where __D: ::serde::Deserializer<'__de>{
+                    struct DeVisitor #visitor_ty_generics ((#phantom_data_fields));
+                    impl #impl_generics Visitor<'__de> for DeVisitor #visitor_ty_generics #where_clause{
+                        type Value = __IT;
                         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                             formatter.write_str("Map de")
                         }
 
-                        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                        fn visit_seq<__A>(self, mut seq: __A) -> Result<Self::Value, __A::Error>
                         where
-                            A: ::serde::de::SeqAccess<'de>,
+                            __A: ::serde::de::SeqAccess<'__de>,
                         {
                             #de_columns
                         }
                     }
-                    let visitor = DeVisitor((::std::marker::PhantomData, ::std::marker::PhantomData));
+                    let visitor = DeVisitor(Default::default());
                     de.deserialize_seq(visitor)
                 }
             }
@@ -102,27 +111,27 @@ fn process_map_generics<'a>(
         true => {
             let where_clause = add_generics_clause_to_where(
                 vec![
-                    syn::parse_quote! {for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c #struct_name)>},
-                    syn::parse_quote! {K: ::serde::ser::Serialize + Eq + Clone},
+                    syn::parse_quote! {for<'c> &'c __IT: IntoIterator<Item = (&'c __K, &'c #struct_name #ty_generics)>},
+                    syn::parse_quote! {__K: ::serde::ser::Serialize + Eq + Clone},
                 ],
                 where_clause,
             );
-            impl_generics.params.push(syn::parse_quote! { K });
-            impl_generics.params.push(syn::parse_quote! { IT });
+            impl_generics.params.push(syn::parse_quote! { __K });
+            impl_generics.params.push(syn::parse_quote! { __IT });
             let (impl_generics, _, _) = impl_generics.split_for_impl();
             (impl_generics, where_clause)
         }
         false => {
             let where_clause = add_generics_clause_to_where(
                 vec![
-                    syn::parse_quote! {IT: FromIterator<(K, #struct_name)> + Clone},
-                    syn::parse_quote! {K: ::serde::de::Deserialize<'de> + Eq + Clone},
+                    syn::parse_quote! {__IT: FromIterator<(__K, #struct_name #ty_generics)> + Clone},
+                    syn::parse_quote! {__K: ::serde::de::Deserialize<'__de> + Eq + Clone},
                 ],
                 where_clause,
             );
-            impl_generics.params.push(syn::parse_quote! { 'de });
-            impl_generics.params.push(syn::parse_quote! { K });
-            impl_generics.params.push(syn::parse_quote! { IT });
+            impl_generics.params.push(syn::parse_quote! { '__de });
+            impl_generics.params.push(syn::parse_quote! { __K });
+            impl_generics.params.push(syn::parse_quote! { __IT });
             let (impl_generics, _, _) = impl_generics.split_for_impl();
             (impl_generics, where_clause)
         }
@@ -313,7 +322,7 @@ fn generate_map_per_column_to_de_columns(
 
         let q = if !optional {
             quote::quote!(
-                let #column_index: #column_type = seq.next_element()?.ok_or_else(||A::Error::custom("DeserializeUnexpectedEnd"))?;
+                let #column_index: #column_type = seq.next_element()?.ok_or_else(||__A::Error::custom("DeserializeUnexpectedEnd"))?;
                 column_data_len = ::std::cmp::max(column_data_len, #column_index.len());
             )
         } else {
@@ -330,7 +339,7 @@ fn generate_map_per_column_to_de_columns(
             let index = index.unwrap();
             quote::quote!(
                 let #column_index: #column_type = if let Some(bytes) = mapping.remove(&#index){
-                    postcard::from_bytes(&bytes).map_err(A::Error::custom)?
+                    postcard::from_bytes(&bytes).map_err(__A::Error::custom)?
                 }else{
                     vec![Default::default(); column_data_len].into()
                 };
@@ -369,7 +378,7 @@ fn generate_map_per_column_to_de_columns(
 
     let ret = quote::quote!(
         let mut column_data_len: usize = 0;
-        let vec_k: ::std::vec::Vec<_> = seq.next_element()?.ok_or_else(||A::Error::custom("DeserializeUnexpectedEnd"))?;
+        let vec_k: ::std::vec::Vec<_> = seq.next_element()?.ok_or_else(||__A::Error::custom("DeserializeUnexpectedEnd"))?;
         #(#elements)*;
         let ans: ::std::vec::Vec<_> = ::serde_columnar::izip!(#(#into_iter_quote),*)
             .map(|(#(#field_names),*)| #struct_name{

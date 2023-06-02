@@ -211,7 +211,7 @@ pub fn generate_derive_vec_row_de(
         .params
         .push(syn::parse_quote! { __IT });
     let (_, visitor_ty_generics, _) = generics_params_add_it.split_for_impl();
-    let phantom_data_fields = generate_generics_phantom(&input.generics, Some(quote::quote!(__IT)));
+    let phantom_data_fields = generate_generics_phantom(&generics_params_add_it);
     // generate de columns
     let de = generate_per_column_to_de_columns(field_args, input)?;
 
