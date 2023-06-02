@@ -14,7 +14,10 @@ pub fn add_generics_clause_to_where(
     where_clause
 }
 
-pub fn generate_generics_phantom(generics: &Generics) -> proc_macro2::TokenStream {
+pub fn generate_generics_phantom(
+    generics: &Generics,
+    extra_generics: Option<proc_macro2::TokenStream>,
+) -> proc_macro2::TokenStream {
     let mut phantom_data_fields = proc_macro2::TokenStream::new();
     for param in generics.params.iter() {
         if let syn::GenericParam::Type(type_param) = param {
@@ -24,6 +27,11 @@ pub fn generate_generics_phantom(generics: &Generics) -> proc_macro2::TokenStrea
             };
             phantom_data_fields.extend(field);
         }
+    }
+    if let Some(extra) = extra_generics {
+        phantom_data_fields.extend(quote::quote! {
+            std::marker::PhantomData::<#extra>,
+        })
     }
     phantom_data_fields
 }

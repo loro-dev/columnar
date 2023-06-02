@@ -81,7 +81,7 @@ pub fn generate_compatible_de(
     let impl_generics = add_de(&mut g_clone);
     let per_field_de = generate_per_element_de(field_args)?;
     let field_names = field_args.iter().map(|args| &args.ident);
-    let phantom_data_fields = generate_generics_phantom(&input.generics);
+    let phantom_data_fields = generate_generics_phantom(&input.generics, None);
     let ret = quote::quote!(
         const _:()={
             use ::std::collections::HashMap;

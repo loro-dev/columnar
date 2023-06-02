@@ -2,7 +2,7 @@ use crate::args::{Args, FieldArgs};
 use syn::{DeriveInput, Generics};
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
-use super::utils::add_generics_clause_to_where;
+use super::utils::{add_generics_clause_to_where, generate_generics_phantom};
 
 pub fn generate_derive_vec_row_ser(
     input: &DeriveInput,
@@ -33,8 +33,8 @@ pub fn generate_derive_vec_row_ser(
             use ::serde::ser::Error;
             use ::serde::ser::SerializeSeq;
             #[automatically_derived]
-            impl #impl_generics ::serde_columnar::RowSer<IT> for #struct_name_ident #ty_generics #where_clause {
-                fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
+            impl #impl_generics ::serde_columnar::RowSer<__IT> for #struct_name_ident #ty_generics #where_clause {
+                fn serialize_columns<S>(rows: &__IT, ser: S) -> std::result::Result<S::Ok, S::Error>
                 where
                     S: serde::ser::Serializer,
                 {
@@ -57,20 +57,22 @@ fn process_vec_generics<'a>(
     let (impl_generics, where_clause) = match is_ser {
         true => {
             let where_clause = add_generics_clause_to_where(
-                vec![syn::parse_quote! {for<'c> &'c IT: IntoIterator<Item = &'c #struct_name>}],
+                vec![
+                    syn::parse_quote! {for<'c> &'c __IT: IntoIterator<Item = &'c #struct_name #ty_generics>},
+                ],
                 where_clause,
             );
-            impl_generics.params.push(syn::parse_quote! { IT });
+            impl_generics.params.push(syn::parse_quote! { __IT });
             let (impl_generics, _, _) = impl_generics.split_for_impl();
             (impl_generics, where_clause)
         }
         false => {
             let where_clause = add_generics_clause_to_where(
-                vec![syn::parse_quote! {IT: FromIterator<#struct_name> + Clone}],
+                vec![syn::parse_quote! {__IT: FromIterator<#struct_name #ty_generics> + Clone}],
                 where_clause,
             );
-            impl_generics.params.push(syn::parse_quote! { 'de });
-            impl_generics.params.push(syn::parse_quote! { IT });
+            impl_generics.params.push(syn::parse_quote! { '__de });
+            impl_generics.params.push(syn::parse_quote! { __IT });
             let (impl_generics, _, _) = impl_generics.split_for_impl();
             (impl_generics, where_clause)
         }
@@ -204,6 +206,12 @@ pub fn generate_derive_vec_row_de(
         &mut impl_generics,
         false,
     );
+    let mut generics_params_add_it = input.generics.clone();
+    generics_params_add_it
+        .params
+        .push(syn::parse_quote! { __IT });
+    let (_, visitor_ty_generics, _) = generics_params_add_it.split_for_impl();
+    let phantom_data_fields = generate_generics_phantom(&input.generics, Some(quote::quote!(__IT)));
     // generate de columns
     let de = generate_per_column_to_de_columns(field_args, input)?;
 
@@ -213,26 +221,26 @@ pub fn generate_derive_vec_row_de(
             use ::serde::de::Visitor;
             use ::std::collections::HashMap;
             #[automatically_derived]
-            impl #impl_generics ::serde_columnar::RowDe<'de, IT> for #struct_name_ident #ty_generics #where_clause {
-                fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
+            impl #impl_generics ::serde_columnar::RowDe<'__de, __IT> for #struct_name_ident #ty_generics #where_clause {
+                fn deserialize_columns<__D>(de: __D) -> Result<__IT, __D::Error>
                 where
-                    D: serde::Deserializer<'de>
+                    __D: serde::Deserializer<'__de>
                 {
-                    struct DeVisitor<IT>(::std::marker::PhantomData<IT>);
-                    impl #impl_generics Visitor<'de> for DeVisitor<IT> #where_clause{
-                        type Value = IT;
+                    struct DeVisitor #visitor_ty_generics ((#phantom_data_fields));
+                    impl #impl_generics Visitor<'__de> for DeVisitor #visitor_ty_generics #where_clause{
+                        type Value = __IT;
                         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                             formatter.write_str("Vec de")
                         }
 
-                        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                        fn visit_seq<__A>(self, mut seq: __A) -> Result<Self::Value, __A::Error>
                         where
-                            A: ::serde::de::SeqAccess<'de>,
+                            __A: ::serde::de::SeqAccess<'__de>,
                         {
                             #de
                         }
                     }
-                    let visitor = DeVisitor(::std::marker::PhantomData);
+                    let visitor = DeVisitor(Default::default());
                     de.deserialize_seq(visitor)
                 }
             }
@@ -298,7 +306,7 @@ fn generate_per_column_to_de_columns(
 
         let q = if !optional {
             quote::quote!(
-                let #column_index: #column_type = seq.next_element()?.ok_or_else(||A::Error::custom("DeserializeUnexpectedEnd"))?;
+                let #column_index: #column_type = seq.next_element()?.ok_or_else(||__A::Error::custom("DeserializeUnexpectedEnd"))?;
                 column_data_len = ::std::cmp::max(column_data_len, #column_index.len());
             )
         } else {
@@ -316,7 +324,7 @@ fn generate_per_column_to_de_columns(
             let index = index.unwrap();
             quote::quote!(
                 let #column_index: #column_type = if let Some(bytes) = mapping.remove(&#index){
-                    postcard::from_bytes(&bytes).map_err(A::Error::custom)?
+                    postcard::from_bytes(&bytes).map_err(__A::Error::custom)?
                 }else{
                     vec![Default::default(); column_data_len].into()
                 };
