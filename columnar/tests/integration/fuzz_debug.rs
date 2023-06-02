@@ -5,7 +5,7 @@ use std::collections::HashMap;
 type ID = u64;
 
 #[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Data {
     #[columnar(strategy = "Rle")]
     id: u8,
@@ -44,7 +44,7 @@ impl PartialEq for Data {
 }
 
 #[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VecStore {
     #[columnar(class = "vec")]
     data: Vec<Data>,
@@ -53,7 +53,7 @@ pub struct VecStore {
 }
 
 #[columnar(ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MapStore {
     #[columnar(class = "map")]
     data: HashMap<u64, Data>,
@@ -61,7 +61,7 @@ pub struct MapStore {
 }
 
 #[columnar(ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NestedStore {
     #[columnar(class = "vec")]
     stores: Vec<VecStore>,

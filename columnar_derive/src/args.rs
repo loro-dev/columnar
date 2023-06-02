@@ -17,8 +17,6 @@ pub struct DeriveArgs {
     pub(crate) ser: bool,
     #[darling(default)]
     pub(crate) de: bool,
-    #[darling(default)]
-    pub(crate) compatible: bool,
 }
 #[cfg(feature = "compress")]
 #[derive(FromMeta, Debug, Clone)]

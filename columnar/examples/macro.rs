@@ -1,10 +1,8 @@
+use serde_columnar::columnar;
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
-use serde_columnar::columnar;
-
 #[columnar(map, ser, de)]
-#[derive(Debug, Serialize, PartialEq, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 struct Data {
     id: u64,
     s: String,
@@ -12,7 +10,7 @@ struct Data {
     name: String,
 }
 
-#[columnar(compatible, vec, ser, de)]
+#[columnar(vec, ser, de)]
 #[derive(Debug)]
 struct Store {
     id: u64,

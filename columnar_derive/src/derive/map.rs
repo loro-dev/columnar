@@ -32,7 +32,7 @@ pub fn generate_derive_hashmap_row_ser(
 
                 fn serialize_columns<S>(rows: &IT, ser: S) -> std::result::Result<S::Ok, S::Error>
                 where
-                    S: serde::Serializer,
+                    S: ::serde::Serializer,
                 {
                     #columns
                     #ser_quote
@@ -67,7 +67,7 @@ pub fn generate_derive_hashmap_row_de(
             #[automatically_derived]
             impl #impl_generics ::serde_columnar::KeyRowDe<'de, K, IT> for #struct_name_ident #ty_generics #where_clause {
                 fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
-                where D: serde::Deserializer<'de>{
+                where D: ::serde::Deserializer<'de>{
                     struct DeVisitor<K, IT>((::std::marker::PhantomData<K>, ::std::marker::PhantomData<IT>));
                     impl #impl_generics Visitor<'de> for DeVisitor<K, IT> #where_clause{
                         type Value = IT;
@@ -103,7 +103,7 @@ fn process_map_generics<'a>(
             let where_clause = add_generics_clause_to_where(
                 vec![
                     syn::parse_quote! {for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c #struct_name)>},
-                    syn::parse_quote! {K: Serialize + Eq + Clone},
+                    syn::parse_quote! {K: ::serde::ser::Serialize + Eq + Clone},
                 ],
                 where_clause,
             );
@@ -116,7 +116,7 @@ fn process_map_generics<'a>(
             let where_clause = add_generics_clause_to_where(
                 vec![
                     syn::parse_quote! {IT: FromIterator<(K, #struct_name)> + Clone},
-                    syn::parse_quote! {K: Deserialize<'de> + Eq + Clone},
+                    syn::parse_quote! {K: ::serde::de::Deserialize<'de> + Eq + Clone},
                 ],
                 where_clause,
             );

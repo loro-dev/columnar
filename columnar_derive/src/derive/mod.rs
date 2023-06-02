@@ -18,15 +18,13 @@ pub fn process_derive_args(
 ) -> Result<proc_macro2::TokenStream, DarlingError> {
     let mut tokens = proc_macro2::TokenStream::new();
 
-    if derive_args.compatible {
-        if derive_args.ser {
-            let compatible_ser = serde::generate_compatible_ser(input, field_args)?;
-            tokens.extend(compatible_ser);
-        }
-        if derive_args.de {
-            let compatible_de = serde::generate_compatible_de(input, field_args)?;
-            tokens.extend(compatible_de);
-        }
+    if derive_args.ser {
+        let compatible_ser = serde::generate_compatible_ser(input, field_args)?;
+        tokens.extend(compatible_ser);
+    }
+    if derive_args.de {
+        let compatible_de = serde::generate_compatible_de(input, field_args)?;
+        tokens.extend(compatible_de);
     }
 
     if derive_args.vec {

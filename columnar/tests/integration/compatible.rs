@@ -2,7 +2,7 @@
 pub mod table {
     use serde_columnar::columnar;
 
-    #[columnar(compatible, ser, de)]
+    #[columnar(ser, de)]
     #[derive(Debug, Clone, PartialEq)]
     struct VecStore {
         data: Vec<u64>,
@@ -10,7 +10,7 @@ pub mod table {
         id: u64,
     }
 
-    #[columnar(compatible, ser, de)]
+    #[columnar(ser, de)]
     #[derive(Debug, Default, Clone, PartialEq)]
     struct MoreVecStore {
         data: Vec<u64>,
@@ -57,7 +57,7 @@ pub mod row {
     type ID = u64;
 
     #[columnar(vec, ser, de)]
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Data {
         #[columnar(strategy = "DeltaRle")]
         id: ID,
@@ -66,7 +66,7 @@ pub mod row {
     }
 
     #[columnar(vec, ser, de)]
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct NewData {
         #[columnar(strategy = "DeltaRle")]
         id: ID,
@@ -76,7 +76,7 @@ pub mod row {
         id2: Option<u64>,
     }
 
-    #[columnar(compatible, ser, de)]
+    #[columnar(ser, de)]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct VecStore {
         #[columnar(class = "vec")]
@@ -84,7 +84,7 @@ pub mod row {
         pub id: u32,
     }
 
-    #[columnar(compatible, ser, de)]
+    #[columnar(ser, de)]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct NewVecStore {
         #[columnar(class = "vec")]
