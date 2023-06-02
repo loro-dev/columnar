@@ -278,33 +278,6 @@ pub fn get_field_args_add_serde_with_to_field(
     }
 }
 
-// fn process_named_struct(
-//     fields: &mut syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-//      derive_args: &DeriveArgs,
-// ) -> syn::Result<Vec<FieldArgs>> {
-//     let mut index = 0;
-//     let mut fields_args = Vec::with_capacity(fields.len());
-//     for field in fields.iter_mut() {
-//         let mut field_args = FieldArgs::from_field(field)?;
-//         // skip
-//         add_serde_skip(field, &field_args)?;
-//         if field_args.skip {
-//             fields_args.push(field_args);
-//             continue;
-//         }
-//         // serde with
-//         add_serde_with(field, &field_args, derive_args)?;
-//         if let Some(_index) = field_args.index {
-//             index = _index + 1;
-//         } else {
-//             field_args.index = Some(index);
-//             index += 1;
-//         }
-//         fields_args.push(field_args);
-//     }
-//     Ok(fields_args)
-// }
-
 fn process_enum_variants(
     variants: &mut syn::punctuated::Punctuated<syn::Variant, syn::token::Comma>,
     derive_args: &DeriveArgs,
@@ -314,10 +287,10 @@ fn process_enum_variants(
         let field_args = VariantArgs::from_variant(variant)?;
         // skip
         add_serde_skip(variant, &field_args)?;
-        // if field_args.skip {
-        //     fields_args.push(field_args);
-        //     continue;
-        // }
+        if field_args.skip {
+            fields_args.push(field_args);
+            continue;
+        }
         // serde with
         add_serde_with(variant, &field_args, derive_args)?;
         fields_args.push(field_args);
@@ -328,6 +301,7 @@ fn process_enum_variants(
 pub fn check_args_validate(field_args: &[FieldArgs]) -> syn::Result<()> {
     // if some fields is not optional, but it appears after some optional fields, then we need to throw error
     let mut start_optional = false;
+    let mut indexes = std::collections::HashSet::new();
     for args in field_args {
         let field_name = &args.ident;
         let optional = args.optional;
@@ -346,6 +320,13 @@ pub fn check_args_validate(field_args: &[FieldArgs]) -> syn::Result<()> {
                     "optional field must have index",
                 ));
             }
+            if indexes.contains(&index.unwrap()) {
+                return Err(syn::Error::new_spanned(
+                    field_name,
+                    "index cannot have duplicate values",
+                ));
+            }
+            indexes.insert(index.unwrap());
         };
 
         let strategy = &args.strategy;

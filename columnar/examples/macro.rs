@@ -11,7 +11,6 @@ struct Data {
     #[columnar(strategy = "Rle", optional, index = 0)]
     name: String,
 }
-// TODO: index checker
 
 #[columnar(compatible, vec, ser, de)]
 #[derive(Debug)]
