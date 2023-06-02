@@ -49,9 +49,6 @@ pub struct FieldArgs {
     /// the type of the column format, vec or map.
     #[darling(rename = "class")]
     pub type_: Option<String>,
-    /// If skip, this field will be ignored.
-    #[darling(default)]
-    pub skip: bool,
     pub compress: Option<Override<CompressArgs>>,
 }
 
@@ -74,9 +71,6 @@ pub struct FieldArgs {
     /// the type of the column format, vec or map.
     #[darling(rename = "class")]
     pub type_: Option<String>,
-    /// If skip, this field will be ignored.
-    #[darling(default)]
-    pub skip: bool,
 }
 
 #[cfg(feature = "compress")]
@@ -87,20 +81,12 @@ pub struct VariantArgs {
     // pub vis: syn::Visibility,
     // pub ty: syn::Type,
     pub attrs: Vec<syn::Attribute>,
-    // custom attributes
-    /// The index of the field in the struct, starts from 0 default.
-    pub index: Option<usize>,
-    #[darling(default)]
-    pub optional: bool,
-    /// the strategy to convert the field values to a column.
-    pub strategy: Option<String>,
     /// the type of the column format, vec or map.
     #[darling(rename = "class")]
     pub type_: Option<String>,
     /// If skip, this field will be ignored.
     #[darling(default)]
     pub skip: bool,
-    pub compress: Option<Override<CompressArgs>>,
 }
 
 #[cfg(not(feature = "compress"))]
@@ -114,6 +100,9 @@ pub struct VariantArgs {
     /// the type of the column format, vec or map.
     #[darling(rename = "class")]
     pub type_: Option<String>,
+    /// If skip, this field will be ignored.
+    #[darling(default)]
+    pub skip: bool,
 }
 
 pub enum AsType {
@@ -129,8 +118,7 @@ pub trait Args {
     fn index(&self) -> Option<usize>;
     fn optional(&self) -> bool;
     fn strategy(&self) -> &Option<String>;
-    fn _type(&self) -> Option<AsType>;
-    fn skip(&self) -> bool;
+    fn type_(&self) -> Option<AsType>;
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>>;
     #[cfg(feature = "compress")]
@@ -201,16 +189,13 @@ impl Args for FieldArgs {
         &self.strategy
     }
 
-    fn _type(&self) -> Option<AsType> {
+    fn type_(&self) -> Option<AsType> {
         match self.type_.as_deref() {
             Some("vec") => Some(AsType::Vec),
             Some("map") => Some(AsType::Map),
             Some(_) => Some(AsType::Other),
             None => None,
         }
-    }
-    fn skip(&self) -> bool {
-        self.skip
     }
 
     #[cfg(feature = "compress")]
@@ -238,7 +223,7 @@ impl Args for VariantArgs {
     fn strategy(&self) -> &Option<String> {
         &None
     }
-    fn _type(&self) -> Option<AsType> {
+    fn type_(&self) -> Option<AsType> {
         match self.type_.as_deref() {
             Some("vec") => Some(AsType::Vec),
             Some("map") => Some(AsType::Map),
@@ -246,10 +231,6 @@ impl Args for VariantArgs {
             None => None,
         }
     }
-    fn skip(&self) -> bool {
-        false
-    }
-
     #[cfg(feature = "compress")]
     fn compress(&self) -> Option<Override<CompressArgs>> {
         self.compress.clone()

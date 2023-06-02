@@ -1,6 +1,6 @@
 use syn::parse_quote;
 
-use crate::args::{Args, AsType, DeriveArgs};
+use crate::args::{Args, AsType, DeriveArgs, VariantArgs};
 
 pub trait ContainerFieldVariant: quote::ToTokens {
     fn get_attr_mut(&mut self) -> &mut Vec<syn::Attribute>;
@@ -21,8 +21,11 @@ impl ContainerFieldVariant for syn::Variant {
     }
 }
 
-pub fn add_serde_skip<C: ContainerFieldVariant, A: Args>(cfv: &mut C, args: &A) -> syn::Result<()> {
-    if args.skip() {
+pub fn add_serde_skip<C: ContainerFieldVariant>(
+    cfv: &mut C,
+    args: &VariantArgs,
+) -> syn::Result<()> {
+    if args.skip {
         let attr = parse_quote! {
             #[serde(skip)]
         };
@@ -36,7 +39,7 @@ pub fn add_serde_with<C: ContainerFieldVariant, A: Args>(
     args: &A,
     derive_args: &DeriveArgs,
 ) -> syn::Result<()> {
-    if let Some(as_arg) = &args._type() {
+    if let Some(as_arg) = &args.type_() {
         match as_arg {
             AsType::Vec => {
                 if derive_args.ser {

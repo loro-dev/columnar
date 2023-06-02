@@ -153,7 +153,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
 }
 
 fn encode_per_column_to_ser(field_args: &Vec<FieldArgs>) -> syn::Result<proc_macro2::TokenStream> {
-    let mut field_len = field_args.len();
+    let field_len = field_args.len();
     let mut ser_elements = Vec::with_capacity(field_len);
     for args in field_args.iter() {
         let field_name = &args.ident;

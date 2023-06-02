@@ -1,121 +1,23 @@
 #[cfg(test)]
 pub mod table {
-    use std::collections::HashMap;
+    use serde_columnar::columnar;
 
-    use serde::de::Error as DeError;
-    use serde::de::Visitor;
-    use serde::ser::SerializeSeq;
-    use serde::ser::{Error as SerError, SerializeTuple};
-    use serde::{Deserialize, Serialize};
-
-    // #[columnar(compatible)]
+    #[columnar(compatible, ser, de)]
     #[derive(Debug, Clone, PartialEq)]
     struct VecStore {
-        // #[columnar(index=0)]
         data: Vec<u64>,
+        #[columnar(optional, index = 0)]
         id: u64,
     }
 
+    #[columnar(compatible, ser, de)]
     #[derive(Debug, Default, Clone, PartialEq)]
     struct MoreVecStore {
         data: Vec<u64>,
+        #[columnar(optional, index = 0)]
         id: u64,
-        // #[columnar(optional)]
+        #[columnar(optional, index = 1)]
         id2: Option<u64>,
-    }
-
-    impl Serialize for VecStore {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            let mut tuple = serializer.serialize_seq(Some(2))?;
-            tuple.serialize_element(&self.data)?;
-            tuple.serialize_element(&self.id)?;
-            tuple.end()
-        }
-    }
-
-    impl Serialize for MoreVecStore {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            let mut tuple = serializer.serialize_seq(Some(3))?;
-            tuple.serialize_element(&self.data)?;
-            tuple.serialize_element(&self.id)?;
-            let index_0_bytes = postcard::to_allocvec(&self.id2).map_err(S::Error::custom)?;
-            tuple.serialize_element(&(0u8, index_0_bytes))?;
-            tuple.end()
-        }
-    }
-
-    impl<'de> Deserialize<'de> for VecStore {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            struct VecStoreVisitor;
-            impl<'de> Visitor<'de> for VecStoreVisitor {
-                type Value = VecStore;
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    formatter.write_str("VecStore")
-                }
-                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                where
-                    A: serde::de::SeqAccess<'de>,
-                {
-                    let data = seq
-                        .next_element()?
-                        .ok_or_else(|| A::Error::custom("data"))?;
-                    let id = seq.next_element()?.ok_or_else(|| A::Error::custom("id"))?;
-                    while let Ok(Some((_index, _bytes))) = seq.next_element::<(u8, Vec<u8>)>() {
-                        // ignore
-                    }
-                    Ok(VecStore { data, id })
-                }
-            }
-            deserializer.deserialize_seq(VecStoreVisitor)
-        }
-    }
-
-    impl<'de> Deserialize<'de> for MoreVecStore {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            struct MoreVecStoreVisitor;
-            impl<'de> Visitor<'de> for MoreVecStoreVisitor {
-                type Value = MoreVecStore;
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    formatter.write_str("MoreVecStore")
-                }
-
-                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                where
-                    A: serde::de::SeqAccess<'de>,
-                {
-                    let data = seq
-                        .next_element()?
-                        .ok_or_else(|| A::Error::custom("data"))?;
-                    let id = seq.next_element()?.ok_or_else(|| A::Error::custom("id"))?;
-                    // optional
-                    let mut mapping = HashMap::new();
-
-                    while let Ok(Some((index, bytes))) = seq.next_element::<(u8, Vec<u8>)>() {
-                        // ignore
-                        mapping.insert(index, bytes);
-                    }
-                    let id2 = if let Some(bytes) = mapping.remove(&0) {
-                        Some(postcard::from_bytes(&bytes).map_err(A::Error::custom)?)
-                    } else {
-                        Default::default()
-                    };
-                    Ok(MoreVecStore { data, id, id2 })
-                }
-            }
-            deserializer.deserialize_seq(MoreVecStoreVisitor)
-        }
     }
 
     #[test]
@@ -150,9 +52,6 @@ pub mod table {
 
 #[cfg(test)]
 pub mod row {
-    use std::collections::HashMap;
-
-    use serde::de::Visitor;
     use serde::{Deserialize, Serialize};
     use serde_columnar::columnar;
     type ID = u64;

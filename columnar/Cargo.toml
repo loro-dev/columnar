@@ -18,6 +18,7 @@ keywords = [
 serde = { version = "1.0.147", features = ["derive"] }
 criterion = "0.4"
 serde_json = "1.0"
+insta = { version = "1.29.0", features = ["yaml"] }
 
 [dependencies]
 serde = { version = "1.0" }
@@ -46,3 +47,9 @@ required-features = ["analyze"]
 
 [lib]
 doctest = false
+
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3
