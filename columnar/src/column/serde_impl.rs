@@ -21,7 +21,7 @@ impl<T: Rleable> Serialize for RleColumn<T> {
     }
 }
 
-impl<T: DeltaRleable + std::fmt::Debug> Serialize for DeltaRleColumn<T> {
+impl<T: DeltaRleable> Serialize for DeltaRleColumn<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

@@ -1,4 +1,4 @@
-use syn::{Generics, TypeGenerics, WherePredicate};
+use syn::{Generics, WherePredicate};
 
 pub fn add_generics_clause_to_where(
     generics: Vec<WherePredicate>,
@@ -17,12 +17,22 @@ pub fn add_generics_clause_to_where(
 pub fn generate_generics_phantom(generics: &Generics) -> proc_macro2::TokenStream {
     let mut phantom_data_fields = proc_macro2::TokenStream::new();
     for param in generics.params.iter() {
-        if let syn::GenericParam::Type(type_param) = param {
-            let ident = &type_param.ident;
-            let field = quote::quote! {
-                std::marker::PhantomData::<#ident>,
-            };
-            phantom_data_fields.extend(field);
+        match param {
+            syn::GenericParam::Type(type_param) => {
+                let ident = &type_param.ident;
+                let field = quote::quote! {
+                    std::marker::PhantomData::<#ident>,
+                };
+                phantom_data_fields.extend(field);
+            }
+            syn::GenericParam::Lifetime(lifetime_def) => {
+                let lifetime = &lifetime_def.lifetime;
+                let field = quote::quote! {
+                    std::marker::PhantomData::<&#lifetime ()>,
+                };
+                phantom_data_fields.extend(field);
+            }
+            _ => {}
         }
     }
     phantom_data_fields

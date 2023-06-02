@@ -248,7 +248,7 @@ fn encode_map_per_column_to_ser(
             let index = index.unwrap();
             quote::quote!(
                 {
-                    let bytes = ::postcard::to_allocvec(&#column_index).map_err(S::Error::custom)?;
+                    let bytes = ::postcard::to_allocvec(&#column_index).map_err(__S::Error::custom)?;
                     seq_encoder.serialize_element(&(#index , bytes))?;
                 }
 
