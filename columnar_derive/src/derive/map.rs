@@ -183,8 +183,8 @@ fn generate_with_map_per_columns(
         let column_content_token = if args.strategy.is_none() {
             quote::quote!()
         } else {
-            quote::quote!(let #column_index = #column_type_token::new(
-                #column_index,
+            quote::quote!(let #column_name = #column_type_token::new(
+                #column_name,
                 ::serde_columnar::ColumnAttr{
                     index: None,
                     // strategy: #strategy,
@@ -227,10 +227,6 @@ fn encode_map_per_column_to_ser(
         let field_name = &args.ident;
         let optional = args.optional;
         let index = args.index;
-        // if args.skip {
-        //     field_len -= 1;
-        //     continue;
-        // }
         let column_index = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
             proc_macro2::Span::call_site(),

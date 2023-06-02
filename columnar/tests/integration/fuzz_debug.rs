@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use serde_columnar::{columnar, from_bytes, to_vec};
 use std::collections::HashMap;
 

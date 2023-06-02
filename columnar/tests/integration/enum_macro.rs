@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_columnar::{columnar, from_bytes, to_vec};
 #[columnar(vec, map, ser, de)]
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 struct Data {
     #[columnar(compress, strategy = "DeltaRle")]
     id: u64,
@@ -11,7 +11,7 @@ struct Data {
 }
 
 #[columnar(ser, de)]
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 enum Enum {
     #[columnar(class = "vec")]
     Vec(Vec<Data>),

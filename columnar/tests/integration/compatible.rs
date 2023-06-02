@@ -52,7 +52,6 @@ pub mod table {
 
 #[cfg(test)]
 pub mod row {
-    use serde::{Deserialize, Serialize};
     use serde_columnar::columnar;
     type ID = u64;
 

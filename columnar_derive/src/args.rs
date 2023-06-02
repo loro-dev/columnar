@@ -133,12 +133,12 @@ pub trait Args {
                     const DEFAULT_COMPRESS_THRESHOLD: usize = 256;
                     let threshold = compress.min_size.unwrap_or(DEFAULT_COMPRESS_THRESHOLD);
                     if compress.level.is_some() {
-                        let level = compress.level.unwrap();
+                        let level = compress.level.as_ref().unwrap();
                         Ok(quote::quote! {
                             Some(::serde_columnar::CompressConfig::from_level(#threshold, #level))
                         })
                     } else {
-                        let method = compress.method.unwrap();
+                        let method = compress.method.as_ref().unwrap();
                         // TODO: check method is best fast default
                         Ok(quote::quote! {
                             Some(::serde_columnar::CompressConfig::from_method(#threshold, #method.to_string()))
@@ -197,8 +197,8 @@ impl Args for FieldArgs {
     }
 
     #[cfg(feature = "compress")]
-    fn compress(&self) -> Option<Override<CompressArgs>> {
-        self.compress.clone()
+    fn compress(&self) -> &Option<Override<CompressArgs>> {
+        &self.compress
     }
 }
 
@@ -230,8 +230,8 @@ impl Args for VariantArgs {
         }
     }
     #[cfg(feature = "compress")]
-    fn compress(&self) -> Option<Override<CompressArgs>> {
-        self.compress.clone()
+    fn compress(&self) -> &Option<Override<CompressArgs>> {
+        &None
     }
 }
 

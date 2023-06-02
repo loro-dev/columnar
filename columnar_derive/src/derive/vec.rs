@@ -118,9 +118,9 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     let column_content_token = if field_arg.strategy.is_none() {
         quote::quote!()
     } else {
-        quote::quote!(let #column_index = 
+        quote::quote!(let #column_name = 
             #column_type_token::new(
-            #column_index,
+            #column_name,
             ::serde_columnar::ColumnAttr{
                 index: None,
                 // strategy: #strategy,
