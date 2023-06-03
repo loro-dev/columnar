@@ -1,84 +1,72 @@
-# columnar
+# `serde_columnar`
 
-## Introduction
+`serde_columnar` is an ergonomic columnar storage encoding crate that offers forward and backward compatibility. 
 
-`serde_columnar` is a crate that provides columnar storage for **List** and **Map** with compressible serialization and deserialization capabilities.
+It allows the contents that need to be serialized and deserialized to be encoded into binary using columnar storage, all by just employing simple macro annotations.
 
-Columnar storage is very useful when you want to compress serialized data and you know that one or more fields of consecutive structs in the array have the same or equal difference values.
+ For more detailed introduction, please refer to this `Notion` link: [Serde-Columnar](https://www.notion.so/loro-dev/Serde-Columnar-Ergonomic-columnar-storage-encoding-crate-7b0c86d6f8d24e4da45a1e2ebd86741c?pvs=4).
 
-For example, you want to store this array:
+## Features 🚀
 
-```plain
-[{a: 1, b: 1}, {a: 1, b: 2}, {a: 1, b: 3}, ...]
+`serde_columnar` comes with several remarkable features: 
+
+- 🗜️ Utilizes columnar storage in conjunction with various compression strategies to significantly reduce the volume of the encoded content.
+- 🔄 Built-in forward and backward compatibility solutions, eliminating the need for maintaining additional version codes.
+- 🌳 Supports nested columnar storage.
+- 🗃️ Offers additional compression for each column.
+- 📦 Supports list and map containers
+
+## How to use
+
+### Install
+
+```shell
+cargo add serde_columnar
 ```
 
-After columnar storage, it can be stored as:
+Or edit your `Cargo.toml` and add `serde_columnar` as dependency:
 
-```plain
-a: [1, 1, 1,...] ---Rle---> [N, 1]
-b: [1, 2, 3,...] ---DeltaRle---> [N, 1] (each value is 1 greater than the previous one)
+```toml
+[dependencies]
+serde_columnar = "0.3.0"
 ```
 
-## Usage
+### Examples
 
-```rust ignore
-type ID = u64;
-#[columnar(vec, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Data {
-    #[columnar(strategy = "Rle")]
-    num: u32,
-    #[columnar(strategy = "DeltaRle", original_type = "u64")]
-    id: ID,
-    #[columnar(strategy = "Rle")]
+```rust
+use serde_columnar::{columnar, from_bytes, to_vec};
+
+#[columnar(vec, ser, de)]                // this struct can be a row of vec-like container
+#[derive(Clone, PartialEq)]
+struct Data {
+    name: String,    
+    #[columnar(strategy = "DeltaRle")]   // this field will be encoded by `DeltaRle`
+    id: u64,
+    #[columnar(strategy = "Rle")]        // this field will be encoded by `Rle`
     gender: String,
-    #[columnar(strategy = "BoolRle")]
+    #[columnar(strategy = "BoolRle")]    // this field will be encoded by `BoolRle`
     married: bool
+    #[columnar(optional, index = 0)]     // This field is optional, which means that this field can be added in this version or deleted in a future version
+    future: String
 }
 
-#[columnar(ser, de)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VecStore {
-    #[columnar(type = "vec")]
-    pub data: Vec<Data>
+#[columnar(ser, de)]                    // derive `Serialize` and `Deserialize`
+struct VecStore {
+    #[columnar(class = "vec")]          // this field is a vec-like table container
+    pub data: Vec<Data>,
+    #[columnar(optional, index = 0)]    // table container also supports optional field
+		pub other_data: u64
 }
-
 
 let store = VecStore::new(...);
 let bytes = serde_columnar::to_vec(&store).unwrap();
-let store = serde_columnar::from_bytes::<VecStore>(&bytes).unwrap();
+let store_from_bytes = serde_columnar::from_bytes::<VecStore>(&bytes).unwrap();
 
 ```
 
-## More Details
+You can find more examples of `serde_columnar` in `examples` and `tests`.
 
-### Container
+## Acknowledgements
 
-- `#[columnar]` means that some fields (marked by `#[columnar(type = "vec"|"map")]`) of this structure can be serialized and deserialized by columnar encoding
-- `#[columnar(vec, map)]` means the struct can be a row inside `Vec-like` or `Map-like`
-- `#[columnar(ser, de)]` means the struct can be serialized or deserialized or both by columnar encoding
-
-### Field Attributes
-
-- `#[columnar(type = "vec"|"map")]`:
-  - vec means the decorated field T is a container, holds Value and satisfies `&T: IntoIter<Item=&Value>` `T: FromIterator<Value>`
-  - map means the decorated field T is a container, holds Value and satisfies `&T: IntoIter<Item=(&K, &Value)>` `T: FromIterator<(K, Value)>`
-- `#[columnar(strategy = "Rle"|"BoolRle"|"DeltaRle")]`: You can only choose one from the three
-  - Rle [crate::strategy::AnyRleEncoder]
-  - BoolRle [crate::strategy::BoolRleEncoder]
-  - DeltaRle [crate::strategy::DeltaRleEncoder]
-- `#[columnar(original_type="u32")]`: this attribute is used to tell the columnar encoding the original type of the field, which is used when the field is a number
-- `#[columnar(skip)]`: the same as the [skip](https://serde.rs/field-attrs.html#skip) attribute in serde
-
-### Compress (enable `compress` feature)
-
-- `#[columnar(compress)]`: compress the columnar encoded bytes by
-  [default settings](https://docs.rs/flate2/latest/flate2/struct.Compression.html#impl-Default) of Deflate algorithm.
-
-- more compress options:
-  - `#[columnar(compress(min_size=N))]`: compress the columnar encoded bytes when the size of the bytes is larger than N, **default N is 256**.
-  - `#[columnar(compress(level=N))]`: compress the columnar encoded bytes by Deflate algorithm with level N, N is in [0, 9], default N is 6,
-    0 is no compression, 9 is the best compression. See [flate2](https://docs.rs/flate2/latest/flate2/struct.Compression.html#) for more details.
-  - `#[columnar(compress(method="fast"|"best"|"default"))]`: compress the columnar encoded bytes by Deflate algorithm with method "fast", "best" or "default",
-    this attribute is equivalent to `#[columnar(compress(level=1|9|6))]`.
-  - Note: `level` and `method` can not be used at the same time.
+- [postcard](https://github.com/jamesmunns/postcard): Postcard is a #![no_std] focused serializer and deserializer for Serde. We use it as serializer and deserializer in order to provide VLE and ZigZag encoding.
+- [Automerge](https://github.com/automerge/automerge): Automerge is an excellent crdt framework, we reused the code related to RLE Encoding in it.
