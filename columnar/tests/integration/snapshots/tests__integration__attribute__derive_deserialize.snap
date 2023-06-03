@@ -1,0 +1,6 @@
+---
+source: columnar/tests/integration/attribute.rs
+expression: b
+---
+[]
+

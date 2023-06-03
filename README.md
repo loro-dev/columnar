@@ -36,7 +36,7 @@ pub struct Data {
     married: bool
 }
 
-#[columnar]
+#[columnar(ser, de)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VecStore {
     #[columnar(type = "vec")]

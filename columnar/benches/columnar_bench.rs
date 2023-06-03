@@ -37,7 +37,7 @@ mod run {
         name: String,
     }
 
-    #[columnar]
+    #[columnar(ser, de)]
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
     pub struct VecStore {
         #[columnar(type = "vec")]
@@ -58,13 +58,13 @@ mod run {
     pub fn columnar_ende(c: &mut Criterion) {
         c.bench_function("columnar_encode", |b| {
             b.iter(|| {
-                let bytes = serde_columnar::to_vec(&*STORE).unwrap();
+                let _bytes = serde_columnar::to_vec(&*STORE).unwrap();
             })
         });
         c.bench_function("columnar_decode", |b| {
             let bytes = serde_columnar::to_vec(&*STORE).unwrap();
             b.iter(|| {
-                let store = serde_columnar::from_bytes::<VecStore>(&bytes).unwrap();
+                let _store = serde_columnar::from_bytes::<VecStore>(&bytes).unwrap();
             })
         });
     }
@@ -72,13 +72,13 @@ mod run {
     pub fn postcard_ende(c: &mut Criterion) {
         c.bench_function("postcard_encode", |b| {
             b.iter(|| {
-                let bytes = postcard::to_allocvec(&*NORMAL_STORE).unwrap();
+                let _bytes = postcard::to_allocvec(&*NORMAL_STORE).unwrap();
             })
         });
         c.bench_function("postcard_decode", |b| {
             let bytes = postcard::to_allocvec(&*NORMAL_STORE).unwrap();
             b.iter(|| {
-                let store = postcard::from_bytes::<NormalStore>(&bytes).unwrap();
+                let _store = postcard::from_bytes::<NormalStore>(&bytes).unwrap();
             })
         });
     }
@@ -86,13 +86,13 @@ mod run {
     pub fn bincode_ende(c: &mut Criterion) {
         c.bench_function("bincode_encode", |b| {
             b.iter(|| {
-                let bytes = bincode::serialize(&*NORMAL_STORE).unwrap();
+                let _bytes = bincode::serialize(&*NORMAL_STORE).unwrap();
             })
         });
         c.bench_function("bincode_decode", |b| {
             let bytes = bincode::serialize(&*NORMAL_STORE).unwrap();
             b.iter(|| {
-                let store = bincode::deserialize::<NormalStore>(&bytes).unwrap();
+                let _store = bincode::deserialize::<NormalStore>(&bytes).unwrap();
             })
         });
     }

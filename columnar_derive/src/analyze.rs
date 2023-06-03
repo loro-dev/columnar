@@ -3,10 +3,8 @@ use syn;
 
 fn has_attribute(field: &syn::Field, attribute_name: &str) -> bool {
     for attribute in &field.attrs {
-        if let Ok(meta) = attribute.parse_meta() {
-            if meta.path().is_ident(attribute_name) {
-                return true;
-            }
+        if attribute.path().is_ident(attribute_name) {
+            return true;
         }
     }
     false

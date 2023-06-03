@@ -1,6 +1,6 @@
 [package]
 name = "serde_columnar"
-version = "0.2.6"
+version = "0.3.0"
 edition = "2021"
 authors = ["leonzhao <leeeon233@gmail.com>", "zxch3n <remch183@outlook.com>"]
 license = "MIT OR Apache-2.0"
@@ -18,10 +18,11 @@ keywords = [
 serde = { version = "1.0.147", features = ["derive"] }
 criterion = "0.4"
 serde_json = "1.0"
+insta = { version = "1.29.0", features = ["yaml"] }
 
 [dependencies]
 serde = { version = "1.0" }
-serde_columnar_derive = { path = "../columnar_derive", version = "0.2.3" }
+serde_columnar_derive = { path = "../columnar_derive", version = "0.3.0" }
 postcard = { version = "1.0", features = ["alloc"] }
 thiserror = "1.0"
 lazy_static = { version = "1.4", optional = true }
@@ -46,3 +47,9 @@ required-features = ["analyze"]
 
 [lib]
 doctest = false
+
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3

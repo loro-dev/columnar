@@ -7,8 +7,8 @@ use std::fmt::Debug;
 
 #[cfg(feature = "compress")]
 use crate::compress::CompressConfig;
-use crate::Strategy;
 use crate::{columnar_internal::ColumnarEncoder, ColumnarDecoder, ColumnarError};
+use crate::{BoolRleColumn, DeltaRleColumn, DeltaRleable, RleColumn, Rleable, Strategy};
 
 pub(crate) trait ColumnTrait {
     const STRATEGY: Strategy;
@@ -22,22 +22,29 @@ pub(crate) trait ColumnTrait {
 /// The attributes of a column
 ///
 /// including compress config and some ones that may be used in the future.
+#[cfg(feature = "compress")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnAttr {
-    pub index: usize,
-    #[cfg(feature = "compress")]
+    pub index: Option<usize>,
     pub compress: Option<CompressConfig>,
+}
+
+// TODO: remove index
+#[cfg(not(feature = "compress"))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColumnAttr {
+    pub index: Option<usize>,
 }
 
 impl ColumnAttr {
     pub(crate) fn empty() -> Self {
         #[cfg(feature = "compress")]
         return Self {
-            index: 0,
+            index: None,
             compress: None,
         };
         #[cfg(not(feature = "compress"))]
-        return Self { index: 0 };
+        return Self { index: None };
     }
 }
 
@@ -129,6 +136,33 @@ impl<'b> ColumnDecoder<'b> {
             let mut columnar_decoder = ColumnarDecoder::new(bytes);
             let column = T::decode(&mut columnar_decoder)?;
             Ok(column)
+        }
+    }
+}
+
+impl From<Vec<bool>> for BoolRleColumn {
+    fn from(value: Vec<bool>) -> Self {
+        Self {
+            data: value,
+            attr: ColumnAttr::empty(),
+        }
+    }
+}
+
+impl<T: DeltaRleable> From<Vec<T>> for DeltaRleColumn<T> {
+    fn from(value: Vec<T>) -> Self {
+        Self {
+            data: value,
+            attr: ColumnAttr::empty(),
+        }
+    }
+}
+
+impl<T: Rleable> From<Vec<T>> for RleColumn<T> {
+    fn from(value: Vec<T>) -> Self {
+        Self {
+            data: value,
+            attr: ColumnAttr::empty(),
         }
     }
 }

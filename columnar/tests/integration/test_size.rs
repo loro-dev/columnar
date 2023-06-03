@@ -29,18 +29,18 @@ lazy_static! {
 type ID = u64;
 
 #[columnar(vec, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Data {
-    #[columnar(strategy = "DeltaRle", original_type = "u64")]
+    #[columnar(strategy = "DeltaRle")]
     id: ID,
     #[columnar(strategy = "Rle")]
     name: String,
 }
 
 #[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VecStore {
-    #[columnar(type = "vec")]
+    #[columnar(class = "vec")]
     pub data: Vec<Data>,
     pub id: u32,
 }
@@ -57,12 +57,12 @@ pub struct NormalStore {
     pub id: u32,
 }
 
-#[columnar]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[columnar(ser, de)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NestedStore {
-    #[columnar(type = "vec")]
+    #[columnar(class = "vec")]
     stores: Vec<VecStore>,
-    #[columnar(type = "map")]
+    #[columnar(class = "map")]
     map_stores: HashMap<u64, VecStore>,
 }
 

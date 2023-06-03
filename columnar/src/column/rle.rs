@@ -14,12 +14,18 @@ impl<T> Rleable for T where T: Clone + PartialEq + Serialize + for<'de> Deserial
 #[derive(Debug)]
 pub struct RleColumn<T> {
     pub data: Vec<T>,
-    attr: ColumnAttr,
+    pub attr: ColumnAttr,
 }
 
 impl<T: Rleable> RleColumn<T> {
     pub fn new(data: Vec<T>, attr: ColumnAttr) -> Self {
         Self { data, attr }
+    }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

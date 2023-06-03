@@ -61,7 +61,6 @@ pub trait RowSer<IT>: Sized + Serialize
 where
     for<'c> &'c IT: IntoIterator<Item = &'c Self>,
 {
-    const FIELD_NUM: usize;
     fn serialize_columns<S>(rows: &IT, ser: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer;
@@ -72,8 +71,6 @@ pub trait RowDe<'de, IT>: Sized + Deserialize<'de>
 where
     IT: FromIterator<Self> + Clone,
 {
-    const FIELD_NUM: usize;
-
     fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
     where
         D: serde::Deserializer<'de>;
@@ -88,7 +85,6 @@ where
     for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c Self)>,
     K: Serialize + Eq + Clone,
 {
-    const FIELD_NUM: usize;
     fn serialize_columns<S>(rows: &IT, ser: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer;
@@ -100,8 +96,6 @@ where
     IT: FromIterator<(K, Self)> + Clone,
     K: Deserialize<'de> + Eq + Clone,
 {
-    const FIELD_NUM: usize;
-
     fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
     where
         D: serde::Deserializer<'de>;

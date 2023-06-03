@@ -13,12 +13,19 @@ impl<T> DeltaRleable for T where T: Rleable + Copy + TryFrom<i128> + TryInto<i12
 #[derive(Debug)]
 pub struct DeltaRleColumn<T> {
     pub data: Vec<T>,
-    attr: ColumnAttr,
+    pub attr: ColumnAttr,
 }
 
 impl<T> DeltaRleColumn<T> {
     pub fn new(data: Vec<T>, attr: ColumnAttr) -> Self {
         Self { data, attr }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

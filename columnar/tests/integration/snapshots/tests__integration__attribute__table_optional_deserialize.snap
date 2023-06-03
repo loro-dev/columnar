@@ -1,0 +1,8 @@
+---
+source: columnar/tests/integration/attribute.rs
+expression: a
+---
+- 1
+- - 0
+  - - 2
+

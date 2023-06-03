@@ -1,30 +1,28 @@
-use serde::{Deserialize, Serialize};
 use serde_columnar::{columnar, from_bytes, to_vec};
 use std::collections::HashMap;
 
 type ID = u64;
 
 #[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Data {
     #[columnar(strategy = "Rle")]
     id: u8,
-    #[columnar(strategy = "DeltaRle", original_type = "u64")]
+    #[columnar(strategy = "DeltaRle")]
     id2: ID,
     #[columnar(strategy = "Rle")]
     id3: usize,
-    #[columnar(strategy = "DeltaRle", original_type = "i64")]
+    #[columnar(strategy = "DeltaRle")]
     id4: i64,
     id5: i128,
     id6: f64,
     id7: (u16, i32),
     #[columnar(strategy = "BoolRle")]
     b: bool,
-    #[columnar(compress)]
     name: String,
-    #[columnar(type = "vec")]
+    #[columnar(class = "vec")]
     vec: Vec<Data>,
-    #[columnar(type = "map")]
+    #[columnar(class = "map")]
     map: HashMap<String, Data>,
 }
 
@@ -45,28 +43,28 @@ impl PartialEq for Data {
 }
 
 #[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VecStore {
-    #[columnar(type = "vec")]
+    #[columnar(class = "vec")]
     data: Vec<Data>,
     #[columnar(strategy = "DeltaRle")]
     id: u64,
 }
 
-#[columnar]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[columnar(ser, de)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MapStore {
-    #[columnar(type = "map")]
+    #[columnar(class = "map")]
     data: HashMap<u64, Data>,
     id: u64,
 }
 
-#[columnar]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[columnar(ser, de)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NestedStore {
-    #[columnar(type = "vec")]
+    #[columnar(class = "vec")]
     stores: Vec<VecStore>,
-    #[columnar(type = "map")]
+    #[columnar(class = "map")]
     map_stores: HashMap<u64, VecStore>,
 }
 
