@@ -6,15 +6,7 @@ authors = ["leonzhao <leeeon233@gmail.com>", "zxch3n <remch183@outlook.com>"]
 license = "MIT OR Apache-2.0"
 description = "Ergonomic columnar storage encoding crate with forward and backward compatible"
 readme = "README.md"
-keywords = [
-    "columnar",
-    "column-oriented",
-    "compression",
-    "serde",
-    "column_store",
-    "forward-compatible",
-    "backward-compatible"
-]
+keywords = ["columnar", "column-oriented", "compression", "serde", "compatible"]
 
 [dev-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
