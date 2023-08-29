@@ -16,4 +16,6 @@ fn main() {
     };
     let result = foo.analyze();
     println!("{}", result);
+
+    serde_columnar::izip!(0..10, 2..12, 3..13);
 }

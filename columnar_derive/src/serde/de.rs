@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
-use syn::{punctuated::Punctuated, ExprPath, Generics, Lifetime, Path, Type};
+use syn::{punctuated::Punctuated, ExprPath, Generics, Lifetime, LifetimeParam, Path, Type};
 
 use crate::{
     args::Args,
@@ -20,6 +20,8 @@ struct DeFieldAttrs {
     skip: bool,
     borrow: Option<BTreeSet<Lifetime>>,
 }
+
+const DE_LIFETIME: &str = "'de";
 
 impl DeFieldAttrs {
     fn generate_vec_wrapper(&self) -> TokenStream {
@@ -174,7 +176,7 @@ impl DeParameter {
                 ty: f.ty.clone(),
                 optional: f.optional,
                 index: f.index,
-                class: f.type_.clone(),
+                class: f.class.clone(),
                 skip: f.skip,
                 borrow: f.borrow_lifetimes()?,
             };
@@ -254,7 +256,7 @@ impl DeParameter {
         let this_type = Path::from(self.ident.clone());
         let (de_impl_generics, de_ty_generics, ty_generics, where_clause) =
             split_with_de_lifetime(self);
-        let delife = self.borrow.de_lifetime();
+        let delife = self.borrow.de_lifetime(DE_LIFETIME);
         let field_names = self.field_attrs.iter().map(|args| &args.name);
         let mut init_hashmap = false;
         let mut per_field_de = Vec::with_capacity(self.field_length());
@@ -313,13 +315,20 @@ impl DeParameter {
     }
 }
 
-struct DeImplGenerics<'a>(&'a DeParameter);
-struct DeTypeGenerics<'a>(&'a DeParameter);
+pub trait WithGenericsBorrow {
+    fn generics(&self) -> Generics;
+    fn generics_borrow(&self) -> &Generics;
+    fn de_lifetime_param(&self) -> Option<LifetimeParam>;
+    fn de_lifetime(&self) -> &str;
+}
 
-impl<'a> ToTokens for DeImplGenerics<'a> {
+pub struct DeImplGenerics<'a, P>(&'a P);
+pub struct DeTypeGenerics<'a, P>(&'a P);
+
+impl<'a, P: WithGenericsBorrow> ToTokens for DeImplGenerics<'a, P> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let mut generics = self.0.generics.clone();
-        if let Some(de_lifetime) = self.0.borrow.de_lifetime_param() {
+        let mut generics = self.0.generics();
+        if let Some(de_lifetime) = self.0.de_lifetime_param() {
             generics.params = Some(syn::GenericParam::Lifetime(de_lifetime))
                 .into_iter()
                 .chain(generics.params)
@@ -329,13 +338,13 @@ impl<'a> ToTokens for DeImplGenerics<'a> {
         impl_generics.to_tokens(tokens);
     }
 }
-impl<'a> ToTokens for DeTypeGenerics<'a> {
+impl<'a, P: WithGenericsBorrow> ToTokens for DeTypeGenerics<'a, P> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let mut generics = self.0.generics.clone();
-        if self.0.borrow.de_lifetime_param().is_some() {
+        let mut generics = self.0.generics();
+        if self.0.de_lifetime_param().is_some() {
             let def = syn::LifetimeParam {
                 attrs: Vec::new(),
-                lifetime: syn::Lifetime::new("'de", Span::call_site()),
+                lifetime: syn::Lifetime::new(self.0.de_lifetime(), Span::call_site()),
                 colon_token: None,
                 bounds: Punctuated::new(),
             };
@@ -350,17 +359,17 @@ impl<'a> ToTokens for DeTypeGenerics<'a> {
     }
 }
 
-fn split_with_de_lifetime(
-    params: &DeParameter,
+pub fn split_with_de_lifetime<P: WithGenericsBorrow>(
+    params: &P,
 ) -> (
-    DeImplGenerics,
-    DeTypeGenerics,
+    DeImplGenerics<P>,
+    DeTypeGenerics<P>,
     syn::TypeGenerics,
     Option<&syn::WhereClause>,
 ) {
     let de_impl_generics = DeImplGenerics(params);
     let de_ty_generics = DeTypeGenerics(params);
-    let (_, ty_generics, where_clause) = params.generics.split_for_impl();
+    let (_, ty_generics, where_clause) = params.generics_borrow().split_for_impl();
     (de_impl_generics, de_ty_generics, ty_generics, where_clause)
 }
 
@@ -374,8 +383,7 @@ fn wrap_deserialize_with(
     let this_type = &params.ty;
     let (de_impl_generics, de_ty_generics, ty_generics, where_clause) =
         split_with_de_lifetime(params);
-    let delife = params.borrow.de_lifetime();
-
+    let delife = params.borrow.de_lifetime(DE_LIFETIME);
     let wrapper = quote::quote! {
         #[doc(hidden)]
         struct __DeserializeWith #de_impl_generics #where_clause {
@@ -401,4 +409,22 @@ fn wrap_deserialize_with(
     let wrapper_ty = quote:: quote!(__DeserializeWith #de_ty_generics);
 
     (wrapper, wrapper_ty)
+}
+
+impl WithGenericsBorrow for DeParameter {
+    fn de_lifetime_param(&self) -> Option<LifetimeParam> {
+        self.borrow.de_lifetime_param(DE_LIFETIME)
+    }
+
+    fn generics(&self) -> Generics {
+        self.generics.clone()
+    }
+
+    fn generics_borrow(&self) -> &Generics {
+        &self.generics
+    }
+
+    fn de_lifetime(&self) -> &str {
+        DE_LIFETIME
+    }
 }

@@ -1,4 +1,6 @@
-use crate::{ColumnarDecoder, ColumnarEncoder, ColumnarError};
+use std::marker::PhantomData;
+
+use crate::{ColumnarDecoder, ColumnarEncoder, ColumnarError, DeltaRleable};
 
 use super::{AnyRleDecoder, AnyRleEncoder};
 
@@ -27,21 +29,23 @@ impl<'a> DeltaRleEncoder<'a> {
     }
 }
 
-pub struct DeltaRleDecoder<'a, 'de> {
+pub struct DeltaRleDecoder<'a, 'de, T> {
     rle: AnyRleDecoder<'a, 'de, i128>,
     absolute_value: i128,
+    _t: PhantomData<T>,
 }
 
-impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
+impl<'a, 'de, T: DeltaRleable> DeltaRleDecoder<'a, 'de, T> {
     pub(crate) fn new(de: &'a mut ColumnarDecoder<'de>) -> Self {
         Self {
             rle: AnyRleDecoder::new(de),
             absolute_value: 0,
+            _t: PhantomData,
         }
     }
 
     #[allow(dead_code)]
-    pub(crate) fn decode<T: TryFrom<i128>>(&mut self) -> Result<Vec<T>, ColumnarError> {
+    pub(crate) fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
             values.push(value.try_into().map_err(|_| {
@@ -54,7 +58,7 @@ impl<'a, 'de> DeltaRleDecoder<'a, 'de> {
         Ok(values)
     }
 
-    fn try_next(&mut self) -> Result<Option<i128>, ColumnarError> {
+    pub fn try_next(&mut self) -> Result<Option<i128>, ColumnarError> {
         let next = self.rle.try_next()?;
         if let Some(delta) = next {
             self.absolute_value = self.absolute_value.saturating_add(delta);

@@ -90,20 +90,21 @@ pub use column::{
     bool_rle::BoolRleColumn,
     delta_rle::{DeltaRleColumn, DeltaRleable},
     rle::{RleColumn, Rleable},
-    ColumnAttr, ColumnDecoder, ColumnEncoder,
+    ColumnAttr, ColumnDecoder, ColumnEncoder, ColumnTrait, GenericColumn,
 };
 mod columnar_internal;
-pub use crate::columnar_internal::{ColumnarDecoder, ColumnarEncoder};
+pub use columnar_internal::{ColumnarDecoder, ColumnarEncoder};
+pub mod iterable;
 mod row;
-pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
-mod strategy;
-mod wrap;
 pub use itertools::{izip, MultiUnzip};
+pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 use serde::{Deserialize, Serialize};
+mod strategy;
 pub use strategy::{
     AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaRleDecoder, DeltaRleEncoder,
     Strategy,
 };
+mod wrap;
 pub use wrap::{ColumnarMap, ColumnarVec};
 #[cfg(feature = "compress")]
 mod compress;
@@ -134,4 +135,11 @@ pub fn from_bytes<'de, 'a: 'de, T: Deserialize<'de>>(bytes: &'a [u8]) -> Result<
     let mut decoder = ColumnarDecoder::<'de>::new(bytes);
     T::deserialize(decoder.deref_mut())
         .map_err(|e| ColumnarError::SerializeError(e as postcard::Error))
+}
+
+pub fn iter_from_bytes<'de, T: iterable::TableIter<'de>>(bytes: &'de [u8]) -> T::Iter {
+    let mut decoder = ColumnarDecoder::<'de>::new(bytes);
+    T::Iter::deserialize(decoder.deref_mut())
+        .map_err(|e| ColumnarError::SerializeError(e as postcard::Error))
+        .unwrap()
 }

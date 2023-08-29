@@ -10,18 +10,18 @@ pub enum BorrowedLifetimes {
 }
 
 impl BorrowedLifetimes {
-    pub fn de_lifetime(&self) -> syn::Lifetime {
+    pub fn de_lifetime(&self, lifetime: &str) -> syn::Lifetime {
         match *self {
-            BorrowedLifetimes::Borrowed(_) => syn::Lifetime::new("'de", Span::call_site()),
+            BorrowedLifetimes::Borrowed(_) => syn::Lifetime::new(lifetime, Span::call_site()),
             BorrowedLifetimes::Static => syn::Lifetime::new("'static", Span::call_site()),
         }
     }
 
-    pub fn de_lifetime_param(&self) -> Option<syn::LifetimeParam> {
+    pub fn de_lifetime_param(&self, lifetime: &str) -> Option<syn::LifetimeParam> {
         match self {
             BorrowedLifetimes::Borrowed(bounds) => Some(syn::LifetimeParam {
                 attrs: Vec::new(),
-                lifetime: syn::Lifetime::new("'de", Span::call_site()),
+                lifetime: syn::Lifetime::new(lifetime, Span::call_site()),
                 colon_token: None,
                 bounds: bounds.iter().cloned().collect(),
             }),
@@ -43,7 +43,14 @@ pub fn borrowed_lifetimes(fields: &[FieldArgs]) -> syn::Result<BorrowedLifetimes
     let mut lifetimes = BTreeSet::new();
     for field in fields {
         if !field.skip {
-            lifetimes.extend(field.lifetime()?.iter().cloned());
+            // remove 'de
+            lifetimes.extend(
+                field
+                    .lifetime()?
+                    .iter()
+                    .filter(|l| l.ident != "de")
+                    .cloned(),
+            );
         }
     }
     if lifetimes.iter().any(|b| b.to_string() == "'static") {

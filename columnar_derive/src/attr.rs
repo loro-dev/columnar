@@ -1,5 +1,5 @@
 use proc_macro2::Ident;
-use syn::{ImplGenerics, TypeGenerics, WhereClause};
+use syn::{Generics, ImplGenerics, TypeGenerics, WhereClause};
 
 use crate::{
     args::{DeriveArgs, FieldArgs},
@@ -53,7 +53,7 @@ pub struct Context<'a> {
     /// The contents of the struct or enum.
     pub data: Data,
     /// Any generics on the struct or enum.
-    pub generics: &'a syn::Generics,
+    pub generics: &'a Generics,
     /// Original input.
     pub original: &'a syn::DeriveInput,
     pub derive_args: DeriveArgs,
@@ -81,6 +81,7 @@ impl<'a> Context<'a> {
             }
         };
         let borrowed = borrowed_lifetimes(data.fields())?;
+
         Ok(Context {
             ident: input.ident.clone(),
             data,

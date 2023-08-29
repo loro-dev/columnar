@@ -4,8 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 
-// TODO: remove clone
-
 /// The wrapper of `Vec-like` container, we have implemented the `Serialize` and `Deserialize` for it.
 ///
 /// When it is serialized or deserialized, it will call [`RowSer::serialize_columns()`] or [`RowDe::deserialize_columns()`]

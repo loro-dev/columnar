@@ -568,6 +568,7 @@ fn nested() {
         #[columnar(strategy = "BoolRle")]
         b: bool,
     }
+
     #[columnar(vec, map, ser, de)]
     #[derive(Debug, PartialEq)]
     struct C {

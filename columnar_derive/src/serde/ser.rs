@@ -32,7 +32,7 @@ impl SerParameter {
                     ty: f.ty.clone(),
                     optional: f.optional,
                     index: f.index,
-                    class: f.type_.clone(),
+                    class: f.class.clone(),
                     skip: f.skip,
                 })
                 .collect(),

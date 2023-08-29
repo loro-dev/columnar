@@ -7,7 +7,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use std::{borrow::Borrow, marker::PhantomData, ops::DerefMut};
+use std::{borrow::Borrow, ops::DerefMut};
 
 use super::MAX_RLE_COUNT;
 
@@ -150,7 +150,6 @@ pub struct AnyRleDecoder<'a, 'de, T> {
     last_value: Option<T>,
     count: isize,
     literal: bool,
-    lifetime: PhantomData<&'de ()>,
 }
 
 impl<'a, 'de, T> AnyRleDecoder<'a, 'de, T>
@@ -163,7 +162,6 @@ where
             last_value: None,
             count: 0,
             literal: false,
-            lifetime: PhantomData,
         }
     }
 
