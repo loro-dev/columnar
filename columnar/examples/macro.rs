@@ -1,12 +1,12 @@
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 use serde_columnar::columnar;
 
-#[columnar(map, ser, de)]
-struct B<P>
-where
-    P: Serialize + for<'a> Deserialize<'a> + Clone,
-{
-    t: P,
+#[columnar(ser, de)]
+struct A<'a> {
+    #[columnar(borrow)]
+    data: Cow<'a, str>,
 }
 
 fn main() {}

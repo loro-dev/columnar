@@ -1,9 +1,13 @@
+use std::collections::BTreeSet;
+
 use darling::ast::NestedMeta;
 #[allow(unused_imports)]
 use darling::{util::Override, Error as DarlingError, FromField, FromMeta, FromVariant};
+use proc_macro2::{Spacing, TokenTree};
 #[allow(unused_imports)]
 use proc_macro2::{Span, TokenStream};
-use syn::DeriveInput;
+use quote::ToTokens;
+use syn::{parse::ParseStream, DeriveInput, Lifetime, LitStr, Token, Type};
 
 use crate::attr::{add_serde_skip, add_serde_with};
 
@@ -48,6 +52,7 @@ pub struct FieldArgs {
     #[darling(rename = "class")]
     pub type_: Option<String>,
     pub compress: Option<Override<CompressArgs>>,
+    pub borrow: Option<Override<LitStr>>,
 }
 
 #[cfg(not(feature = "compress"))]
@@ -69,6 +74,7 @@ pub struct FieldArgs {
     /// the type of the column format, vec or map.
     #[darling(rename = "class")]
     pub type_: Option<String>,
+    pub borrow: Option<Override<LitStr>>,
 }
 
 #[cfg(feature = "compress")]
@@ -117,6 +123,7 @@ pub trait Args {
     fn optional(&self) -> bool;
     fn strategy(&self) -> &Option<String>;
     fn type_(&self) -> Option<AsType>;
+    fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>>;
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>>;
     #[cfg(feature = "compress")]
@@ -196,6 +203,59 @@ impl Args for FieldArgs {
         }
     }
 
+    fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
+        if self.borrow.is_none() {
+            return Ok(None);
+        }
+
+        match self.borrow.as_ref().unwrap() {
+            Override::Inherit => {
+                let mut lifetimes = BTreeSet::new();
+                collect_lifetimes(&self.ty, &mut lifetimes);
+                if lifetimes.is_empty() {
+                    Err(syn::Error::new_spanned(
+                        self.ty.clone().into_token_stream(),
+                        "at least one lifetime must be borrowed",
+                    ))
+                } else {
+                    Ok(Some(lifetimes))
+                }
+            }
+            Override::Explicit(string) => {
+                if let Ok(lifetimes) = string.parse_with(|input: ParseStream| {
+                    let mut set = BTreeSet::new();
+                    while !input.is_empty() {
+                        let lifetime: Lifetime = input.parse()?;
+                        if !set.insert(lifetime.clone()) {
+                            return Err(syn::Error::new_spanned(
+                                string.clone().into_token_stream(),
+                                format!("duplicate borrowed lifetime `{}`", lifetime),
+                            ));
+                        }
+                        if input.is_empty() {
+                            break;
+                        }
+                        input.parse::<Token![+]>()?;
+                    }
+                    Ok(set)
+                }) {
+                    if lifetimes.is_empty() {
+                        return Err(syn::Error::new_spanned(
+                            string.clone().into_token_stream(),
+                            "at least one lifetime must be borrowed",
+                        ));
+                    }
+                    Ok(Some(lifetimes))
+                } else {
+                    Err(syn::Error::new_spanned(
+                        string.clone().into_token_stream(),
+                        format!("failed to parse borrowed lifetimes: {:?}", string.value()),
+                    ))
+                }
+            }
+        }
+    }
+
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>> {
         &self.compress
@@ -229,6 +289,9 @@ impl Args for VariantArgs {
             None => None,
         }
     }
+    fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
+        Ok(None)
+    }
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>> {
         &None
@@ -241,7 +304,7 @@ pub fn get_derive_args(args: &[NestedMeta]) -> syn::Result<DeriveArgs> {
         Err(e) => {
             eprintln!("get_derive_args error: {}", e);
             Err(DarlingError::unsupported_format(
-                "columnar only supports attributes with `compatible`, `vec`, `map` and `ser`, `de`",
+                "columnar only supports attributes with `vec`, `map` and `ser`, `de`",
             )
             .into())
         }
@@ -337,4 +400,223 @@ pub fn check_args_validate(field_args: &[FieldArgs]) -> syn::Result<()> {
         }
     }
     Ok(())
+}
+
+fn collect_lifetimes(ty: &syn::Type, out: &mut BTreeSet<syn::Lifetime>) {
+    match ty {
+        syn::Type::Slice(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Array(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Ptr(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Reference(ty) => {
+            out.extend(ty.lifetime.iter().cloned());
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Tuple(ty) => {
+            for elem in &ty.elems {
+                collect_lifetimes(elem, out);
+            }
+        }
+        syn::Type::Path(ty) => {
+            if let Some(qself) = &ty.qself {
+                collect_lifetimes(&qself.ty, out);
+            }
+            for seg in &ty.path.segments {
+                if let syn::PathArguments::AngleBracketed(bracketed) = &seg.arguments {
+                    for arg in &bracketed.args {
+                        match arg {
+                            syn::GenericArgument::Lifetime(lifetime) => {
+                                out.insert(lifetime.clone());
+                            }
+                            syn::GenericArgument::Type(ty) => {
+                                collect_lifetimes(ty, out);
+                            }
+                            syn::GenericArgument::AssocType(binding) => {
+                                collect_lifetimes(&binding.ty, out);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        syn::Type::Paren(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Group(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Macro(ty) => {
+            collect_lifetimes_from_tokens(ty.mac.tokens.clone(), out);
+        }
+        syn::Type::BareFn(_)
+        | syn::Type::Never(_)
+        | syn::Type::TraitObject(_)
+        | syn::Type::ImplTrait(_)
+        | syn::Type::Infer(_)
+        | syn::Type::Verbatim(_) => {}
+
+        #[cfg_attr(all(test, exhaustive), deny(non_exhaustive_omitted_patterns))]
+        _ => {}
+    }
+}
+fn collect_lifetimes_from_tokens(tokens: TokenStream, out: &mut BTreeSet<syn::Lifetime>) {
+    let mut iter = tokens.into_iter();
+    while let Some(tt) = iter.next() {
+        match &tt {
+            TokenTree::Punct(op) if op.as_char() == '\'' && op.spacing() == Spacing::Joint => {
+                if let Some(TokenTree::Ident(ident)) = iter.next() {
+                    out.insert(syn::Lifetime {
+                        apostrophe: op.span(),
+                        ident,
+                    });
+                }
+            }
+            TokenTree::Group(group) => {
+                let tokens = group.stream();
+                collect_lifetimes_from_tokens(tokens, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+// Whether the type looks like it might be `std::borrow::Cow<T>` where elem="T".
+// This can have false negatives and false positives.
+//
+// False negative:
+//
+//     use std::borrow::Cow as Pig;
+//
+//     #[derive(Deserialize)]
+//     struct S<'a> {
+//         #[serde(borrow)]
+//         pig: Pig<'a, str>,
+//     }
+//
+// False positive:
+//
+//     type str = [i16];
+//
+//     #[derive(Deserialize)]
+//     struct S<'a> {
+//         #[serde(borrow)]
+//         cow: Cow<'a, str>,
+//     }
+fn is_cow(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
+    let path = match ungroup(ty) {
+        syn::Type::Path(ty) => &ty.path,
+        _ => {
+            return false;
+        }
+    };
+    let seg = match path.segments.last() {
+        Some(seg) => seg,
+        None => {
+            return false;
+        }
+    };
+    let args = match &seg.arguments {
+        syn::PathArguments::AngleBracketed(bracketed) => &bracketed.args,
+        _ => {
+            return false;
+        }
+    };
+    seg.ident == "Cow"
+        && args.len() == 2
+        && match (&args[0], &args[1]) {
+            (syn::GenericArgument::Lifetime(_), syn::GenericArgument::Type(arg)) => elem(arg),
+            _ => false,
+        }
+}
+
+fn is_option(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
+    let path = match ungroup(ty) {
+        syn::Type::Path(ty) => &ty.path,
+        _ => {
+            return false;
+        }
+    };
+    let seg = match path.segments.last() {
+        Some(seg) => seg,
+        None => {
+            return false;
+        }
+    };
+    let args = match &seg.arguments {
+        syn::PathArguments::AngleBracketed(bracketed) => &bracketed.args,
+        _ => {
+            return false;
+        }
+    };
+    seg.ident == "Option"
+        && args.len() == 1
+        && match &args[0] {
+            syn::GenericArgument::Type(arg) => elem(arg),
+            _ => false,
+        }
+}
+
+// Whether the type looks like it might be `&T` where elem="T". This can have
+// false negatives and false positives.
+//
+// False negative:
+//
+//     type Yarn = str;
+//
+//     #[derive(Deserialize)]
+//     struct S<'a> {
+//         r: &'a Yarn,
+//     }
+//
+// False positive:
+//
+//     type str = [i16];
+//
+//     #[derive(Deserialize)]
+//     struct S<'a> {
+//         r: &'a str,
+//     }
+fn is_reference(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
+    match ungroup(ty) {
+        syn::Type::Reference(ty) => ty.mutability.is_none() && elem(&ty.elem),
+        _ => false,
+    }
+}
+
+fn is_str(ty: &syn::Type) -> bool {
+    is_primitive_type(ty, "str")
+}
+
+fn is_slice_u8(ty: &syn::Type) -> bool {
+    match ungroup(ty) {
+        syn::Type::Slice(ty) => is_primitive_type(&ty.elem, "u8"),
+        _ => false,
+    }
+}
+
+fn is_primitive_type(ty: &syn::Type, primitive: &str) -> bool {
+    match ungroup(ty) {
+        syn::Type::Path(ty) => ty.qself.is_none() && is_primitive_path(&ty.path, primitive),
+        _ => false,
+    }
+}
+
+fn is_primitive_path(path: &syn::Path, primitive: &str) -> bool {
+    path.leading_colon.is_none()
+        && path.segments.len() == 1
+        && path.segments[0].ident == primitive
+        && path.segments[0].arguments.is_empty()
+}
+
+pub fn ungroup(mut ty: &Type) -> &Type {
+    while let Type::Group(group) = ty {
+        ty = &group.elem;
+    }
+    ty
 }
