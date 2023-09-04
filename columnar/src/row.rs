@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 /// If a type implements [`RowSer`] and [`RowDe`] trait, it can be considered as a row of vec-like container.
 ///
 /// this trait can **be easily derived** by adding `#[columnar(vec)]` to the struct or enum.
@@ -57,7 +55,7 @@ use serde::{Deserialize, Serialize};
 /// [`DeltaRleColumn`]: crate::DeltaRleColumn
 /// [`DeltaRle`]: crate::strategy::DeltaRleEncoder
 /// [`ColumnEncoder`]: crate::column::ColumnEncoder
-pub trait RowSer<IT>: Sized + Serialize
+pub trait RowSer<IT>: Sized
 where
     for<'c> &'c IT: IntoIterator<Item = &'c Self>,
 {
@@ -67,9 +65,9 @@ where
 }
 
 /// If a type implements [`RowSer`] and [`RowDe`] trait, it can be considered as a row of vec-like container.
-pub trait RowDe<'de, IT>: Sized + Deserialize<'de>
+pub trait RowDe<'de, IT>: Sized
 where
-    IT: FromIterator<Self> + Clone,
+    IT: FromIterator<Self>,
 {
     fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
     where
@@ -80,10 +78,9 @@ where
 ///
 /// Almost the same as [`KeyRowSer`], but additionally needs to convert arbitrary type K to `Vec<K>`.
 ///
-pub trait KeyRowSer<K, IT>: Sized + Serialize
+pub trait KeyRowSer<K, IT>: Sized
 where
     for<'c> &'c IT: IntoIterator<Item = (&'c K, &'c Self)>,
-    K: Serialize + Eq + Clone,
 {
     fn serialize_columns<S>(rows: &IT, ser: S) -> Result<S::Ok, S::Error>
     where
@@ -91,10 +88,9 @@ where
 }
 
 /// The **Map** version of [`RowDe`] trait.
-pub trait KeyRowDe<'de, K, IT>: Sized + Deserialize<'de>
+pub trait KeyRowDe<'de, K, IT>: Sized
 where
-    IT: FromIterator<(K, Self)> + Clone,
-    K: Deserialize<'de> + Eq + Clone,
+    IT: FromIterator<(K, Self)>,
 {
     fn deserialize_columns<D>(de: D) -> Result<IT, D::Error>
     where

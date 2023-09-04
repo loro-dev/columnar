@@ -101,7 +101,6 @@ pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
 /// 2. generate `VecRow` and `MapRow` trait implementations for the struct.
 ///
 fn expand_columnar(args: Vec<NestedMeta>, mut st: DeriveInput) -> syn::Result<TokenStream> {
-    check_derive_serde(&st)?;
     let derive_args = get_derive_args(&args)?;
     // iterate all fields to check if there is any `columnar` attribute
     // and parse all fields' `columnar` attributes to [`FieldArgs`].
@@ -116,13 +115,6 @@ fn expand_columnar(args: Vec<NestedMeta>, mut st: DeriveInput) -> syn::Result<To
         // enum
         Ok(input.into())
     }
-}
-
-/// The struct annotated with `columnar` *MUST* be derived with `Serialize` and `Deserialize` trait.
-#[allow(dead_code)]
-fn check_derive_serde(_: &DeriveInput) -> syn::Result<()> {
-    // TODO: adjust this whether derive Serialize and Deserialize
-    Ok(())
 }
 
 /// Add [`__private_consume_columnar_attributes`] derive attribute to the input struct.

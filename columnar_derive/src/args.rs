@@ -52,15 +52,21 @@ pub struct FieldArgs {
     #[darling(rename = "class")]
     pub type_: Option<String>,
     pub compress: Option<Override<CompressArgs>>,
+    /// Same as the `borrow` of `serde`
     pub borrow: Option<Override<LitStr>>,
+    /// Same as the `skip` of `serde`
+    #[darling(default)]
+    pub skip: bool,
 }
 
 #[cfg(not(feature = "compress"))]
 #[derive(FromField, Debug)]
 #[darling(attributes(columnar))]
 pub struct FieldArgs {
+    /// the name of field
     pub ident: Option<syn::Ident>,
     pub vis: syn::Visibility,
+    /// the type of field
     pub ty: syn::Type,
     pub attrs: Vec<syn::Attribute>,
     // custom attributes
@@ -74,7 +80,11 @@ pub struct FieldArgs {
     /// the type of the column format, vec or map.
     #[darling(rename = "class")]
     pub type_: Option<String>,
+    /// Same as the `borrow` of `serde`
     pub borrow: Option<Override<LitStr>>,
+    /// Same as the `skip` of serde
+    #[darling(default)]
+    pub skip: bool,
 }
 
 #[cfg(feature = "compress")]
@@ -123,6 +133,7 @@ pub trait Args {
     fn optional(&self) -> bool;
     fn strategy(&self) -> &Option<String>;
     fn type_(&self) -> Option<AsType>;
+    fn has_borrow_lifetime(&self) -> bool;
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>>;
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>>;
@@ -260,6 +271,10 @@ impl Args for FieldArgs {
     fn compress(&self) -> &Option<Override<CompressArgs>> {
         &self.compress
     }
+
+    fn has_borrow_lifetime(&self) -> bool {
+        self.borrow.is_some()
+    }
 }
 
 impl Args for VariantArgs {
@@ -290,7 +305,10 @@ impl Args for VariantArgs {
         }
     }
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
-        Ok(None)
+        unimplemented!("Variant have not implemented borrow")
+    }
+    fn has_borrow_lifetime(&self) -> bool {
+        false
     }
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>> {
