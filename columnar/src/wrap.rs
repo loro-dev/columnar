@@ -9,7 +9,7 @@ use crate::row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 /// The wrapper of `Vec-like` container, we have implemented the `Serialize` and `Deserialize` for it.
 ///
 /// When it is serialized or deserialized, it will call [`RowSer::serialize_columns()`] or [`RowDe::deserialize_columns()`]
-#[derive(Debug, PartialEq, Clone, Eq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ColumnarVec<'c, T, IT>(pub Cow<'c, IT>)
 where
     for<'a> &'a IT: IntoIterator<Item = &'a T>,
