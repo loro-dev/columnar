@@ -39,8 +39,8 @@ impl SerParameter {
         }
     }
 
-    fn field_length(&self) -> usize {
-        self.field_attrs.len()
+    fn field_length_without_skip(&self) -> usize {
+        self.field_attrs.iter().filter(|f| !f.skip).count()
     }
 
     fn per_field_ser(&self, field: &SerFieldAttrs) -> syn::Result<TokenStream> {
@@ -83,7 +83,7 @@ impl SerParameter {
 
     pub fn derive_ser(&self) -> syn::Result<TokenStream> {
         let struct_name_ident = &self.ident;
-        let field_length = self.field_length();
+        let field_length = self.field_length_without_skip();
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let mut per_element_body = Vec::with_capacity(field_length);
         for field in &self.field_attrs {

@@ -105,6 +105,35 @@ fn derive_deserialize_lifetime() {
 }
 
 #[test]
+fn derive_serialize_skip() {
+    #[columnar(ser)]
+    #[derive(Debug, PartialEq)]
+    struct A {
+        a: u64,
+        #[columnar(skip)]
+        b: u32,
+    }
+    let s = A { a: 1, b: 2 };
+    let bytes = to_vec(&s).unwrap();
+    insta::assert_yaml_snapshot!(bytes);
+}
+
+#[test]
+fn derive_deserialize_skip() {
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct A {
+        a: u64,
+        #[columnar(skip)]
+        b: u32,
+    }
+    let s = A { a: 1, b: 2 };
+    let bytes = to_vec(&s).unwrap();
+    let a: A = from_bytes(&bytes).unwrap();
+    assert_eq!(a, A { a: 1, b: 0 });
+}
+
+#[test]
 fn table_optional_serialize() {
     #[columnar(ser)]
     struct A {

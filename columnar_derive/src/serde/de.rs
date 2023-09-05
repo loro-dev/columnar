@@ -155,11 +155,19 @@ impl DeParameter {
         let delife = self.borrow.de_lifetime();
         let field_names = self.field_attrs.iter().map(|args| &args.name);
         let mut init_hashmap = false;
-        let mut per_field_de = Vec::with_capacity(self.field_attrs.len());
+        let mut per_field_de = Vec::with_capacity(self.field_length());
         for field in &self.field_attrs {
-            let (flag, field_token) = self.per_field_de(field, init_hashmap, &mut per_field_de)?;
-            init_hashmap = flag;
-            per_field_de.push(field_token);
+            if !field.skip {
+                let (flag, field_token) =
+                    self.per_field_de(field, init_hashmap, &mut per_field_de)?;
+                init_hashmap = flag;
+                per_field_de.push(field_token);
+            } else {
+                let field_name = &field.name;
+                per_field_de.push(quote::quote!(
+                    let #field_name = Default::default();
+                ))
+            }
         }
 
         let ans = quote::quote!(
