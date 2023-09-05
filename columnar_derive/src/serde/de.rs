@@ -97,7 +97,7 @@ impl DeParameter {
             if !init_hashmap {
                 elements.push(quote::quote!(
                     let mut mapping = HashMap::new();
-                    while let Ok(Some((index, bytes))) = seq.next_element::<(usize, Vec<u8>)>() {
+                    while let Ok(Some((index, bytes))) = seq.next_element::<(usize, &'de [u8])>() {
                         // ignore
                         mapping.insert(index, bytes);
                     }
@@ -115,7 +115,7 @@ impl DeParameter {
                     "vec" => {
                         quote::quote!(
                             let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                                let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = ::postcard::from_bytes(&bytes).map_err(__A::Error::custom)?;
+                                let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = ::postcard::from_bytes(bytes).map_err(__A::Error::custom)?;
                                 wrapper.into_vec()
                             }else{
                                 Default::default()
@@ -125,7 +125,7 @@ impl DeParameter {
                     "map" => {
                         quote::quote!(
                             let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                                let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = ::postcard::from_bytes(&bytes).map_err(__A::Error::custom)?;
+                                let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = ::postcard::from_bytes(bytes).map_err(__A::Error::custom)?;
                                 wrapper.into_map()
                             }else{
                                 Default::default()
