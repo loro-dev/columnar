@@ -30,7 +30,7 @@ Or edit your `Cargo.toml` and add `serde_columnar` as dependency:
 
 ```toml
 [dependencies]
-serde_columnar = "0.3.0"
+serde_columnar = "0.3.1"
 ```
 
 ### Container Attribute
