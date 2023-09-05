@@ -10,6 +10,7 @@ use serde_columnar::{columnar, from_bytes, to_vec, DeltaRleable, Rleable};
 fn derive_serialize() {
     #[columnar(ser)]
     struct A {}
+
     let bytes = to_vec(&A {}).unwrap();
     insta::assert_yaml_snapshot!(bytes);
 }

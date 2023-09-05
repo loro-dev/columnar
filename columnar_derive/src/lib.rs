@@ -12,19 +12,26 @@ extern crate syn;
 extern crate proc_macro;
 extern crate proc_macro2;
 
+use attr::Context;
 use darling::{export::NestedMeta, Error};
 use derive::process_derive_args;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
+use serde::{de::DeParameter, ser::SerParameter};
 use syn::{parse_macro_input, DeriveInput, Item};
 
 mod args;
-use args::{get_derive_args, get_field_args_add_serde_with_to_field};
+mod ast;
+mod columnar;
+mod de;
+mod serde;
+use args::{get_derive_args, parse_field_args};
 #[cfg(feature = "analyze")]
 mod analyze;
 mod attr;
 mod derive;
+mod utils;
 
 ///
 /// Convenience macro to use the [`columnar`] system.
@@ -99,19 +106,25 @@ pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
 ///
 fn expand_columnar(args: Vec<NestedMeta>, mut st: DeriveInput) -> syn::Result<TokenStream> {
     let derive_args = get_derive_args(&args)?;
+
+    let mut ans = vec![quote::quote!(#st)];
+    let context = Context::new(&st, derive_args)?;
+    if derive_args.ser {
+        ans.push(SerParameter::from_ctx(&context).derive_ser()?);
+    }
+    if derive_args.de {
+        ans.push(DeParameter::from_ctx(&context)?.derive_de()?);
+    }
+
     // iterate all fields to check if there is any `columnar` attribute
     // and parse all fields' `columnar` attributes to [`FieldArgs`].
-    // add [`serde_with`] attributes to the fields.
-    let field_args = get_field_args_add_serde_with_to_field(&mut st, &derive_args)?;
-    let input = quote::quote!(#st);
+    let field_args = parse_field_args(&mut st, &derive_args)?;
     if let Some(field_args) = field_args {
         // struct
         let derive_trait_tokens = process_derive_args(&derive_args, &st, &field_args)?;
-        Ok(quote!(#input #derive_trait_tokens).into())
-    } else {
-        // enum
-        Ok(input.into())
+        ans.push(derive_trait_tokens);
     }
+    Ok(quote!(#(#ans)*).into())
 }
 
 /// Add [`__private_consume_columnar_attributes`] derive attribute to the input struct.

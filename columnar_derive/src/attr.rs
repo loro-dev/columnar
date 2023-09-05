@@ -1,77 +1,104 @@
-use syn::parse_quote;
+use std::rc::Rc;
 
-use crate::args::{Args, AsType, DeriveArgs, VariantArgs};
+use proc_macro2::Ident;
+use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
-pub trait ContainerFieldVariant: quote::ToTokens {
-    fn get_attr_mut(&mut self) -> &mut Vec<syn::Attribute>;
-    fn add_attr(&mut self, attr: syn::Attribute) {
-        self.get_attr_mut().push(attr);
-    }
+use crate::{
+    args::{DeriveArgs, FieldArgs},
+    ast::struct_from_ast,
+    de::{borrowed_lifetimes, BorrowedLifetimes},
+};
+
+/// ```rust
+/// #[columnar(vec, map, ser, de)]
+/// #[derive(Debug)]
+/// pub struct Data {
+///     #[columnar(strategy = "DeltaRle")]
+///     id: ID,
+///     #[columnar(strategy = "Rle")]
+///     name: String,
+///     #
+///     bytes: &'a [u8]
+/// }
+/// ```
+
+pub enum Data {
+    Enum,
+    Struct(Style, Vec<FieldArgs>),
 }
 
-impl ContainerFieldVariant for syn::Field {
-    fn get_attr_mut(&mut self) -> &mut Vec<syn::Attribute> {
-        &mut self.attrs
-    }
-}
-
-impl ContainerFieldVariant for syn::Variant {
-    fn get_attr_mut(&mut self) -> &mut Vec<syn::Attribute> {
-        &mut self.attrs
-    }
-}
-
-pub fn add_serde_skip<C: ContainerFieldVariant>(
-    cfv: &mut C,
-    args: &VariantArgs,
-) -> syn::Result<()> {
-    if args.skip {
-        let attr = parse_quote! {
-            #[serde(skip)]
-        };
-        cfv.add_attr(attr);
-    }
-    Ok(())
-}
-
-pub fn add_serde_with<C: ContainerFieldVariant, A: Args>(
-    cfv: &mut C,
-    args: &A,
-    derive_args: &DeriveArgs,
-) -> syn::Result<()> {
-    if let Some(as_arg) = &args.type_() {
-        match as_arg {
-            AsType::Vec => {
-                if derive_args.ser {
-                    cfv.add_attr(parse_quote! {
-                        #[serde(serialize_with = "::serde_columnar::RowSer::serialize_columns")]
-                    });
-                }
-                if derive_args.de {
-                    cfv.add_attr(parse_quote! {
-                        #[serde(deserialize_with = "::serde_columnar::RowDe::deserialize_columns")]
-                    });
-                }
-            }
-            AsType::Map => {
-                if derive_args.ser {
-                    cfv.add_attr(parse_quote! {
-                        #[serde(serialize_with = "::serde_columnar::KeyRowSer::serialize_columns")]
-                    });
-                }
-                if derive_args.de {
-                    cfv.add_attr(parse_quote! {
-                        #[serde(deserialize_with = "::serde_columnar::KeyRowDe::deserialize_columns")]
-                    });
-                }
-            }
-            AsType::Other => {
-                return Err(syn::Error::new_spanned(
-                    cfv,
-                    "expected `vec` or `map` as value of `type`",
-                ));
-            }
+impl Data {
+    pub fn fields(&self) -> &[FieldArgs] {
+        match &self {
+            Data::Enum => unimplemented!("unsupported enum for now"),
+            Data::Struct(Style::Struct, fields) => fields,
+            _ => unimplemented!("only support named struct for now"),
         }
     }
-    Ok(())
+}
+
+#[derive(Copy, Clone)]
+pub enum Style {
+    /// Named fields.
+    Struct,
+    /// Many unnamed fields.
+    Tuple,
+    /// One unnamed field.
+    Newtype,
+    /// No fields.
+    Unit,
+}
+
+pub struct Context<'a> {
+    pub ident: Ident,
+    /// The contents of the struct or enum.
+    pub data: Data,
+    /// Any generics on the struct or enum.
+    pub generics: &'a syn::Generics,
+    /// Original input.
+    pub original: &'a syn::DeriveInput,
+    pub derive_args: DeriveArgs,
+    pub borrowed: BorrowedLifetimes,
+}
+
+impl<'a> Context<'a> {
+    pub fn new(input: &'a syn::DeriveInput, derive_args: DeriveArgs) -> syn::Result<Self> {
+        let data = match &input.data {
+            syn::Data::Enum(_) => {
+                return Err(syn::Error::new(
+                    input.ident.span(),
+                    "columnar does not support enum type",
+                ))
+            }
+            syn::Data::Struct(data) => {
+                let (style, fields) = struct_from_ast(&data.fields)?;
+                Data::Struct(style, fields)
+            }
+            syn::Data::Union(_) => {
+                return Err(syn::Error::new(
+                    input.ident.span(),
+                    "columnar does not support unions type",
+                ))
+            }
+        };
+        let borrowed = borrowed_lifetimes(data.fields())?;
+        Ok(Context {
+            ident: input.ident.clone(),
+            data,
+            generics: &input.generics,
+            original: input,
+            derive_args,
+            borrowed,
+        })
+    }
+
+    pub fn fields(&self) -> &[FieldArgs] {
+        self.data.fields()
+    }
+}
+
+pub trait ColumnarSerAttributes {
+    fn impl_generics(&self) -> ImplGenerics;
+    fn ty_generics(&self) -> TypeGenerics;
+    fn where_clause(&self) -> WhereClause;
 }

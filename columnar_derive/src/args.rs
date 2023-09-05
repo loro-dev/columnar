@@ -9,9 +9,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
 use syn::{parse::ParseStream, DeriveInput, Lifetime, LitStr, Token, Type};
 
-use crate::attr::{add_serde_skip, add_serde_with};
-
-#[derive(Debug, FromMeta)]
+#[derive(Debug, Clone, Copy, FromMeta)]
 pub struct DeriveArgs {
     #[darling(default)]
     pub(crate) vec: bool,
@@ -329,7 +327,7 @@ pub fn get_derive_args(args: &[NestedMeta]) -> syn::Result<DeriveArgs> {
     }
 }
 
-pub fn get_field_args_add_serde_with_to_field(
+pub fn parse_field_args(
     st: &mut DeriveInput,
     derive_args: &DeriveArgs,
 ) -> syn::Result<Option<Vec<FieldArgs>>> {
@@ -346,35 +344,15 @@ pub fn get_field_args_add_serde_with_to_field(
             check_args_validate(&args)?;
             Ok(Some(args))
         }
-        syn::Data::Enum(syn::DataEnum { variants, .. }) => {
-            process_enum_variants(variants, derive_args)?;
-            Ok(None)
-        }
+        syn::Data::Enum(syn::DataEnum { variants: _, .. }) => Err(syn::Error::new_spanned(
+            st,
+            "only supported named struct type",
+        )),
         _ => Err(syn::Error::new_spanned(
             st,
-            "only supported named struct or enum type",
+            "only supported named struct type",
         )),
     }
-}
-
-fn process_enum_variants(
-    variants: &mut syn::punctuated::Punctuated<syn::Variant, syn::token::Comma>,
-    derive_args: &DeriveArgs,
-) -> syn::Result<Vec<VariantArgs>> {
-    let mut fields_args = Vec::with_capacity(variants.len());
-    for variant in variants.iter_mut() {
-        let field_args = VariantArgs::from_variant(variant)?;
-        // skip
-        add_serde_skip(variant, &field_args)?;
-        if field_args.skip {
-            fields_args.push(field_args);
-            continue;
-        }
-        // serde with
-        add_serde_with(variant, &field_args, derive_args)?;
-        fields_args.push(field_args);
-    }
-    Ok(fields_args)
 }
 
 pub fn check_args_validate(field_args: &[FieldArgs]) -> syn::Result<()> {
@@ -502,139 +480,4 @@ fn collect_lifetimes_from_tokens(tokens: TokenStream, out: &mut BTreeSet<syn::Li
             _ => {}
         }
     }
-}
-
-// Whether the type looks like it might be `std::borrow::Cow<T>` where elem="T".
-// This can have false negatives and false positives.
-//
-// False negative:
-//
-//     use std::borrow::Cow as Pig;
-//
-//     #[derive(Deserialize)]
-//     struct S<'a> {
-//         #[serde(borrow)]
-//         pig: Pig<'a, str>,
-//     }
-//
-// False positive:
-//
-//     type str = [i16];
-//
-//     #[derive(Deserialize)]
-//     struct S<'a> {
-//         #[serde(borrow)]
-//         cow: Cow<'a, str>,
-//     }
-fn is_cow(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
-    let path = match ungroup(ty) {
-        syn::Type::Path(ty) => &ty.path,
-        _ => {
-            return false;
-        }
-    };
-    let seg = match path.segments.last() {
-        Some(seg) => seg,
-        None => {
-            return false;
-        }
-    };
-    let args = match &seg.arguments {
-        syn::PathArguments::AngleBracketed(bracketed) => &bracketed.args,
-        _ => {
-            return false;
-        }
-    };
-    seg.ident == "Cow"
-        && args.len() == 2
-        && match (&args[0], &args[1]) {
-            (syn::GenericArgument::Lifetime(_), syn::GenericArgument::Type(arg)) => elem(arg),
-            _ => false,
-        }
-}
-
-fn is_option(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
-    let path = match ungroup(ty) {
-        syn::Type::Path(ty) => &ty.path,
-        _ => {
-            return false;
-        }
-    };
-    let seg = match path.segments.last() {
-        Some(seg) => seg,
-        None => {
-            return false;
-        }
-    };
-    let args = match &seg.arguments {
-        syn::PathArguments::AngleBracketed(bracketed) => &bracketed.args,
-        _ => {
-            return false;
-        }
-    };
-    seg.ident == "Option"
-        && args.len() == 1
-        && match &args[0] {
-            syn::GenericArgument::Type(arg) => elem(arg),
-            _ => false,
-        }
-}
-
-// Whether the type looks like it might be `&T` where elem="T". This can have
-// false negatives and false positives.
-//
-// False negative:
-//
-//     type Yarn = str;
-//
-//     #[derive(Deserialize)]
-//     struct S<'a> {
-//         r: &'a Yarn,
-//     }
-//
-// False positive:
-//
-//     type str = [i16];
-//
-//     #[derive(Deserialize)]
-//     struct S<'a> {
-//         r: &'a str,
-//     }
-fn is_reference(ty: &syn::Type, elem: fn(&syn::Type) -> bool) -> bool {
-    match ungroup(ty) {
-        syn::Type::Reference(ty) => ty.mutability.is_none() && elem(&ty.elem),
-        _ => false,
-    }
-}
-
-fn is_str(ty: &syn::Type) -> bool {
-    is_primitive_type(ty, "str")
-}
-
-fn is_slice_u8(ty: &syn::Type) -> bool {
-    match ungroup(ty) {
-        syn::Type::Slice(ty) => is_primitive_type(&ty.elem, "u8"),
-        _ => false,
-    }
-}
-
-fn is_primitive_type(ty: &syn::Type, primitive: &str) -> bool {
-    match ungroup(ty) {
-        syn::Type::Path(ty) => ty.qself.is_none() && is_primitive_path(&ty.path, primitive),
-        _ => false,
-    }
-}
-
-fn is_primitive_path(path: &syn::Path, primitive: &str) -> bool {
-    path.leading_colon.is_none()
-        && path.segments.len() == 1
-        && path.segments[0].ident == primitive
-        && path.segments[0].arguments.is_empty()
-}
-
-pub fn ungroup(mut ty: &Type) -> &Type {
-    while let Type::Group(group) = ty {
-        ty = &group.elem;
-    }
-    ty
 }
