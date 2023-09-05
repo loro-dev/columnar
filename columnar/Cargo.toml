@@ -6,11 +6,12 @@ authors = ["leonzhao <leeeon233@gmail.com>", "zxch3n <remch183@outlook.com>"]
 license = "MIT OR Apache-2.0"
 description = "Ergonomic columnar storage encoding crate with forward and backward compatible"
 readme = "README.md"
+repository = "https://github.com/loro-dev/columnar"
 keywords = ["columnar", "column-oriented", "compression", "serde", "compatible"]
 
 [dev-dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
-criterion = "0.4"
+criterion = "0.5.1"
 serde_json = "1.0"
 insta = { version = "1.29.0", features = ["yaml"] }
 
@@ -21,7 +22,7 @@ postcard = { version = "1.0", features = ["alloc"] }
 thiserror = "1.0"
 lazy_static = { version = "1.4", optional = true }
 bincode = { version = "1.3.3", optional = true }
-itertools = "0.10.5"
+itertools = "0.11.0"
 flate2 = { version = "1.0", optional = true }
 
 [[bench]]
