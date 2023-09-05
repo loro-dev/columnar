@@ -29,7 +29,7 @@ mod run {
     }
 
     #[columnar(vec, ser, de)]
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Data {
         #[columnar(strategy = "DeltaRle")]
         id: u64,
@@ -38,9 +38,9 @@ mod run {
     }
 
     #[columnar(ser, de)]
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct VecStore {
-        #[columnar(type = "vec")]
+        #[columnar(class = "vec")]
         pub data: Vec<Data>,
     }
 
