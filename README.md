@@ -70,7 +70,7 @@ serde_columnar = "0.3.0"
   - And in order to avoid the possibility of errors in the future, such as change the order of optional fields, it is necessary to mark the `index`.
   - All `optional` fields must be after other fields.
   - The `index` is the unique identifier of the optional field, which will be encoded into the result. If the corresponding identifier cannot be found during deserialization, `Default` will be used.
-  - `optional` fields can be added or removed in future versions.
+  - `optional` fields can be added or removed in future versions. The compatibility premise is that the field type of the same index does not change or the encoding format is compatible (such as changing `u32` to `u64`).
 - `compress`:
   - **This attribute needs to enable the `compress` feature**
   - This attribute is whether compress the columnar encoded bytes by default settings of Deflate algorithm.
