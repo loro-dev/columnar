@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use syn::Type;
 // Whether the type looks like it might be `std::borrow::Cow<T>` where elem="T".
 // This can have false negatives and false positives.

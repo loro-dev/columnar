@@ -118,7 +118,7 @@ fn expand_columnar(args: Vec<NestedMeta>, mut st: DeriveInput) -> syn::Result<To
 
     // iterate all fields to check if there is any `columnar` attribute
     // and parse all fields' `columnar` attributes to [`FieldArgs`].
-    let field_args = parse_field_args(&mut st, &derive_args)?;
+    let field_args = parse_field_args(&mut st)?;
     if let Some(field_args) = field_args {
         // struct
         let derive_trait_tokens = process_derive_args(&derive_args, &st, &field_args)?;

@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use proc_macro2::Ident;
 use syn::{ImplGenerics, TypeGenerics, WhereClause};
 
@@ -22,6 +20,7 @@ use crate::{
 /// }
 /// ```
 
+#[allow(dead_code)]
 pub enum Data {
     Enum,
     Struct(Style, Vec<FieldArgs>),

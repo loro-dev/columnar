@@ -7,7 +7,7 @@ use proc_macro2::{Spacing, TokenTree};
 #[allow(unused_imports)]
 use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
-use syn::{parse::ParseStream, spanned::Spanned, DeriveInput, Lifetime, LitStr, Token, Type};
+use syn::{parse::ParseStream, spanned::Spanned, DeriveInput, Lifetime, LitStr, Token};
 
 #[derive(Debug, Clone, Copy, FromMeta)]
 pub struct DeriveArgs {
@@ -358,10 +358,7 @@ pub fn get_derive_args(args: &[NestedMeta]) -> syn::Result<DeriveArgs> {
     }
 }
 
-pub fn parse_field_args(
-    st: &mut DeriveInput,
-    derive_args: &DeriveArgs,
-) -> syn::Result<Option<Vec<FieldArgs>>> {
+pub fn parse_field_args(st: &mut DeriveInput) -> syn::Result<Option<Vec<FieldArgs>>> {
     match &mut st.data {
         syn::Data::Struct(syn::DataStruct {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),

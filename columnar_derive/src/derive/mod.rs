@@ -1,5 +1,4 @@
 mod map;
-mod serde;
 mod utils;
 mod vec;
 use crate::args::{DeriveArgs, FieldArgs};
