@@ -4,12 +4,10 @@ use serde::{Deserialize, Serialize};
 use serde_columnar::columnar;
 
 #[columnar(ser, de)]
+#[derive(Debug, PartialEq)]
 struct A<'a> {
-    #[columnar(borrow)]
-    data: Cow<'a, str>,
-    default: u64,
-    #[columnar(optional, index = 0)]
-    a: u32,
+    a: u64,
+    #[columnar(borrow, optional, index = 0)]
+    b: Cow<'a, str>,
 }
-
 fn main() {}

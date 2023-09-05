@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fmt::Debug,
 };
@@ -131,6 +132,69 @@ fn derive_deserialize_skip() {
     let bytes = to_vec(&s).unwrap();
     let a: A = from_bytes(&bytes).unwrap();
     assert_eq!(a, A { a: 1, b: 0 });
+}
+
+#[test]
+fn derive_deserialize_borrow_str() {
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct A<'a> {
+        a: u64,
+        #[columnar(borrow)]
+        b: Cow<'a, str>,
+    }
+    let s = A {
+        a: 1,
+        b: Cow::Borrowed("hello"),
+    };
+    let bytes = to_vec(&s).unwrap();
+    let a: A = from_bytes(&bytes).unwrap();
+    if let Cow::Owned(_) = &a.b {
+        panic!("should be borrowed")
+    }
+    assert_eq!(s, a)
+}
+
+#[test]
+fn derive_deserialize_borrow_bytes() {
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct A<'a> {
+        a: u64,
+        #[columnar(borrow)]
+        b: Cow<'a, [u8]>,
+    }
+    let s = A {
+        a: 1,
+        b: Cow::Borrowed(&[4, 5, 6]),
+    };
+    let bytes = to_vec(&s).unwrap();
+    let a: A = from_bytes(&bytes).unwrap();
+    if let Cow::Owned(_) = &a.b {
+        panic!("should be borrowed")
+    }
+    assert_eq!(s, a)
+}
+
+#[test]
+fn derive_deserialize_borrow_str_optional() {
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct A<'a> {
+        a: u64,
+        #[columnar(borrow, optional, index = 0)]
+        b: Cow<'a, str>,
+    }
+    let s = A {
+        a: 1,
+        b: Cow::Borrowed("hello"),
+    };
+    let bytes = to_vec(&s).unwrap();
+    let a: A = from_bytes(&bytes).unwrap();
+    if let Cow::Owned(_) = &a.b {
+        panic!("should be borrowed")
+    }
+    assert_eq!(s, a)
 }
 
 #[test]

@@ -2,12 +2,13 @@ use std::collections::BTreeSet;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
-use syn::{punctuated::Punctuated, Generics, Lifetime, Path, Type};
+use syn::{punctuated::Punctuated, ExprPath, Generics, Lifetime, Path, Type};
 
 use crate::{
     args::Args,
     attr::Context,
     de::{borrowed_lifetimes, BorrowedLifetimes},
+    utils::{is_cow, is_slice_u8, is_str},
 };
 
 struct DeFieldAttrs {
@@ -20,8 +21,144 @@ struct DeFieldAttrs {
     borrow: Option<BTreeSet<Lifetime>>,
 }
 
+impl DeFieldAttrs {
+    fn generate_vec_wrapper(&self) -> TokenStream {
+        let field_type = &self.ty;
+        let field_name = &self.name;
+        quote::quote!(
+            let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
+            let #field_name = wrapper.into_vec();
+        )
+    }
+
+    fn generate_map_wrapper(&self) -> TokenStream {
+        let field_type = &self.ty;
+        let field_name = &self.name;
+        quote::quote!(
+            let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
+            let #field_name = wrapper.into_map();
+        )
+    }
+
+    fn generate_vec_wrapper_from_mapping(&self) -> TokenStream {
+        let field_type = &self.ty;
+        let field_name = &self.name;
+        let index = self.index.unwrap();
+        quote::quote!(
+            let #field_name = if let Some(bytes) = mapping.remove(&#index){
+                let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = ::postcard::from_bytes(bytes).map_err(__A::Error::custom)?;
+                wrapper.into_vec()
+            }else{
+                Default::default()
+            };
+        )
+    }
+    fn generate_map_wrapper_from_mapping(&self) -> TokenStream {
+        let field_type = &self.ty;
+        let field_name = &self.name;
+        let index = self.index.unwrap();
+        quote::quote!(
+            let #field_name = if let Some(bytes) = mapping.remove(&#index){
+                let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = ::postcard::from_bytes(bytes).map_err(__A::Error::custom)?;
+                wrapper.into_map()
+            }else{
+                Default::default()
+            };
+        )
+    }
+
+    fn generate_normal_field(&self, params: &DeParameter) -> TokenStream {
+        let field_name = &self.name;
+        if self.borrow.is_some() {
+            let path = self.borrow_with().unwrap();
+            let ty = &self.ty;
+            let (wrapper, wrapper_ty) = wrap_deserialize_with(params, &quote::quote!(#ty), &path);
+            quote::quote!(
+                let #field_name = {
+                    #wrapper
+                    ::serde::__private::Option::map(
+                        ::serde::de::SeqAccess::next_element::<#wrapper_ty>(&mut seq)?,
+                        |__wrap| __wrap.value).ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?
+                };
+            )
+        } else {
+            quote::quote!(
+                let #field_name = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
+            )
+        }
+    }
+
+    fn generate_normal_field_from_mapping(&self, params: &DeParameter) -> TokenStream {
+        let field_name = &self.name;
+        let index = self.index.unwrap();
+        if self.borrow.is_some() {
+            let path = self.borrow_with().unwrap();
+            let ty = &self.ty;
+            let (wrapper, wrapper_ty) = wrap_deserialize_with(params, &quote::quote!(#ty), &path);
+
+            quote::quote!(
+                let #field_name = if let Some(bytes) = mapping.remove(&#index){
+                    #wrapper
+                    ::postcard::from_bytes::<#wrapper_ty>(&bytes).map_err(__A::Error::custom)?.value
+                }else{
+                    Default::default()
+                };
+            )
+        } else {
+            quote::quote!(
+                let #field_name = if let Some(bytes) = mapping.remove(&#index){
+                    ::postcard::from_bytes(&bytes).map_err(__A::Error::custom)?
+                }else{
+                    Default::default()
+                };
+            )
+        }
+    }
+
+    fn borrow_with(&self) -> Option<ExprPath> {
+        if is_cow(&self.ty, is_str) {
+            let mut path = syn::Path {
+                leading_colon: None,
+                segments: Punctuated::new(),
+            };
+            let span = Span::call_site();
+            path.segments.push(Ident::new("serde", span).into());
+            path.segments.push(Ident::new("__private", span).into());
+            path.segments.push(Ident::new("de", span).into());
+            path.segments
+                .push(Ident::new("borrow_cow_str", span).into());
+            let ans = syn::ExprPath {
+                attrs: Vec::new(),
+                qself: None,
+                path,
+            };
+            Some(ans)
+        } else if is_cow(&self.ty, is_slice_u8) {
+            let mut path = syn::Path {
+                leading_colon: None,
+                segments: Punctuated::new(),
+            };
+            let span = Span::call_site();
+            path.segments.push(Ident::new("serde", span).into());
+            path.segments.push(Ident::new("__private", span).into());
+            path.segments.push(Ident::new("de", span).into());
+            path.segments
+                .push(Ident::new("borrow_cow_bytes", span).into());
+            let ans = syn::ExprPath {
+                attrs: Vec::new(),
+                qself: None,
+                path,
+            };
+            Some(ans)
+        } else {
+            None
+        }
+    }
+}
+
 pub struct DeParameter {
     ident: Ident,
+    ty: Path,
     generics: Generics,
     field_attrs: Vec<DeFieldAttrs>,
     borrow: BorrowedLifetimes,
@@ -46,6 +183,7 @@ impl DeParameter {
 
         let ans = Self {
             ident: ctx.ident.clone(),
+            ty: Path::from(ctx.ident.clone()),
             generics: ctx.generics.clone(),
             field_attrs,
             borrow,
@@ -63,24 +201,11 @@ impl DeParameter {
         mut init_hashmap: bool,
         elements: &mut Vec<TokenStream>,
     ) -> syn::Result<(bool, TokenStream)> {
-        let field_name = &field.name;
-        let field_type = &field.ty;
-
         let e = if !field.optional {
             if let Some(class) = field.class.as_ref() {
                 match class.as_str() {
-                    "vec" => {
-                        quote::quote!(
-                            let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
-                            let #field_name = wrapper.into_vec();
-                        )
-                    }
-                    "map" => {
-                        quote::quote!(
-                            let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
-                            let #field_name = wrapper.into_map();
-                        )
-                    }
+                    "vec" => field.generate_vec_wrapper(),
+                    "map" => field.generate_map_wrapper(),
                     _ => {
                         return Err(syn::Error::new_spanned(
                             class,
@@ -89,9 +214,7 @@ impl DeParameter {
                     }
                 }
             } else {
-                quote::quote!(
-                let #field_name = seq.next_element()?.ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?;
-                )
+                field.generate_normal_field(self)
             }
         } else {
             if !init_hashmap {
@@ -106,42 +229,21 @@ impl DeParameter {
                 init_hashmap = true;
             }
             // have checked before
-            let index = field.index.ok_or(syn::Error::new(
-                field_name.span(),
-                "field with `index` must be `optional` ",
-            ))?;
+            if field.index.is_none() {
+                return Err(syn::Error::new(
+                    field.name.span(),
+                    "field with `index` must be `optional`",
+                ));
+            }
+
             if let Some(class) = field.class.as_ref() {
                 match class.as_str() {
-                    "vec" => {
-                        quote::quote!(
-                            let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                                let wrapper: ::serde_columnar::ColumnarVec<_, #field_type> = ::postcard::from_bytes(bytes).map_err(__A::Error::custom)?;
-                                wrapper.into_vec()
-                            }else{
-                                Default::default()
-                            };
-                        )
-                    }
-                    "map" => {
-                        quote::quote!(
-                            let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                                let wrapper: ::serde_columnar::ColumnarMap<_, _, #field_type> = ::postcard::from_bytes(bytes).map_err(__A::Error::custom)?;
-                                wrapper.into_map()
-                            }else{
-                                Default::default()
-                            };
-                        )
-                    }
+                    "vec" => field.generate_vec_wrapper_from_mapping(),
+                    "map" => field.generate_map_wrapper_from_mapping(),
                     _ => return Err(syn::Error::new_spanned(class, "unsupported type")),
                 }
             } else {
-                quote::quote!(
-                    let #field_name = if let Some(bytes) = mapping.remove(&#index){
-                        ::postcard::from_bytes(&bytes).map_err(__A::Error::custom)?
-                    }else{
-                        Default::default()
-                    };
-                )
+                field.generate_normal_field_from_mapping(self)
             }
         };
         Ok((init_hashmap, e))
@@ -260,4 +362,43 @@ fn split_with_de_lifetime(
     let de_ty_generics = DeTypeGenerics(params);
     let (_, ty_generics, where_clause) = params.generics.split_for_impl();
     (de_impl_generics, de_ty_generics, ty_generics, where_clause)
+}
+
+/// This function wraps the expression in `#[serde(deserialize_with = "...")]`
+/// in a trait to prevent it from accessing the internal `Deserialize` state.
+fn wrap_deserialize_with(
+    params: &DeParameter,
+    value_ty: &TokenStream,
+    deserialize_with: &syn::ExprPath,
+) -> (TokenStream, TokenStream) {
+    let this_type = &params.ty;
+    let (de_impl_generics, de_ty_generics, ty_generics, where_clause) =
+        split_with_de_lifetime(params);
+    let delife = params.borrow.de_lifetime();
+
+    let wrapper = quote::quote! {
+        #[doc(hidden)]
+        struct __DeserializeWith #de_impl_generics #where_clause {
+            value: #value_ty,
+            phantom: ::serde::__private::PhantomData<#this_type #ty_generics>,
+            lifetime: ::serde::__private::PhantomData<&#delife ()>,
+        }
+
+        impl #de_impl_generics serde::Deserialize<#delife> for __DeserializeWith #de_ty_generics #where_clause {
+            fn deserialize<__D>(__deserializer: __D) -> ::serde::__private::Result<Self, __D::Error>
+            where
+                __D: serde::Deserializer<#delife>,
+            {
+                ::serde::__private::Ok(__DeserializeWith {
+                    value: #deserialize_with(__deserializer)?,
+                    phantom: ::serde::__private::PhantomData,
+                    lifetime: ::serde::__private::PhantomData,
+                })
+            }
+        }
+    };
+
+    let wrapper_ty = quote:: quote!(__DeserializeWith #de_ty_generics);
+
+    (wrapper, wrapper_ty)
 }
