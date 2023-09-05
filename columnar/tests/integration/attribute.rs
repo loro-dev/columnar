@@ -82,28 +82,26 @@ fn derive_serialize_lifetime() {
 
 #[test]
 fn derive_deserialize_lifetime() {
-    // TODO: unsupported now
-    // #[columnar(ser, de)]
-    // #[derive(Debug, PartialEq)]
-    // struct B<P, Q, 's>
-    // where
-    //     P: Serialize + for<'a> Deserialize<'a>,
-    //     Q: Serialize + for<'a> Deserialize<'a>,
-    // {
-    //     p: P,
-    //     q: Q,
-    //     s: &'s str,
-    // }
-    // let table: B<u64, u32> = from_bytes(&[2, 1, 2]).unwrap();
-    // assert_eq!(
-    //     table,
-    //     B {
-    //         p: 1u64,
-    //         q: 2u32,
-    //         s: "a"
-    //     }
-    // );
-    // insta::assert_yaml_snapshot!(table, @"");
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct B<P, Q, 's>
+    where
+        P: Serialize + for<'a> Deserialize<'a>,
+        Q: Serialize + for<'a> Deserialize<'a>,
+    {
+        p: P,
+        q: Q,
+        s: &'s str,
+    }
+    let table: B<u64, u32> = from_bytes(&[3, 1, 2, 1, 97]).unwrap();
+    assert_eq!(
+        table,
+        B {
+            p: 1u64,
+            q: 2u32,
+            s: "a"
+        }
+    );
 }
 
 #[test]

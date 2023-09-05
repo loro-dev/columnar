@@ -7,7 +7,7 @@ use proc_macro2::{Spacing, TokenTree};
 #[allow(unused_imports)]
 use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
-use syn::{parse::ParseStream, DeriveInput, Lifetime, LitStr, Token, Type};
+use syn::{parse::ParseStream, spanned::Spanned, DeriveInput, Lifetime, LitStr, Token, Type};
 
 #[derive(Debug, Clone, Copy, FromMeta)]
 pub struct DeriveArgs {
@@ -133,6 +133,7 @@ pub trait Args {
     fn type_(&self) -> Option<AsType>;
     fn has_borrow_lifetime(&self) -> bool;
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>>;
+    fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>>;
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>>;
     #[cfg(feature = "compress")]
@@ -212,6 +213,16 @@ impl Args for FieldArgs {
         }
     }
 
+    fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
+        if self.has_borrow_lifetime() {
+            Ok(self.borrow_lifetimes()?.unwrap())
+        } else {
+            let mut lifetimes = BTreeSet::new();
+            collect_lifetimes(&self.ty, &mut lifetimes);
+            Ok(lifetimes)
+        }
+    }
+
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
         if self.borrow.is_none() {
             return Ok(None);
@@ -254,6 +265,22 @@ impl Args for FieldArgs {
                             "at least one lifetime must be borrowed",
                         ));
                     }
+
+                    if let Ok(field_lifetimes) = self.lifetime() {
+                        for l in &lifetimes {
+                            if !field_lifetimes.contains(l) {
+                                return Err(syn::Error::new(
+                                    self.ident.span(),
+                                    format!(
+                                        "field `{}` does not have lifetime {}",
+                                        self.ident.as_ref().unwrap(),
+                                        l,
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+
                     Ok(Some(lifetimes))
                 } else {
                     Err(syn::Error::new_spanned(
@@ -311,6 +338,10 @@ impl Args for VariantArgs {
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>> {
         &None
+    }
+
+    fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
+        unimplemented!("Variant have not implemented borrow")
     }
 }
 

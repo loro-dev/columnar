@@ -42,8 +42,8 @@ impl BorrowedLifetimes {
 pub fn borrowed_lifetimes(fields: &[FieldArgs]) -> syn::Result<BorrowedLifetimes> {
     let mut lifetimes = BTreeSet::new();
     for field in fields {
-        if !field.skip && field.has_borrow_lifetime() {
-            lifetimes.extend(field.borrow_lifetimes()?.unwrap().iter().cloned());
+        if !field.skip {
+            lifetimes.extend(field.lifetime()?.iter().cloned());
         }
     }
     if lifetimes.iter().any(|b| b.to_string() == "'static") {
