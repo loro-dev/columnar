@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-
 use serde_columnar::columnar;
 
 #[columnar(ser, de)]
