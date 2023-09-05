@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fmt::Debug,
 };
@@ -10,6 +11,7 @@ use serde_columnar::{columnar, from_bytes, to_vec, DeltaRleable, Rleable};
 fn derive_serialize() {
     #[columnar(ser)]
     struct A {}
+
     let bytes = to_vec(&A {}).unwrap();
     insta::assert_yaml_snapshot!(bytes);
 }
@@ -81,28 +83,118 @@ fn derive_serialize_lifetime() {
 
 #[test]
 fn derive_deserialize_lifetime() {
-    // TODO: unsupported now
-    // #[columnar(ser, de)]
-    // #[derive(Debug, PartialEq)]
-    // struct B<P, Q, 's>
-    // where
-    //     P: Serialize + for<'a> Deserialize<'a>,
-    //     Q: Serialize + for<'a> Deserialize<'a>,
-    // {
-    //     p: P,
-    //     q: Q,
-    //     s: &'s str,
-    // }
-    // let table: B<u64, u32> = from_bytes(&[2, 1, 2]).unwrap();
-    // assert_eq!(
-    //     table,
-    //     B {
-    //         p: 1u64,
-    //         q: 2u32,
-    //         s: "a"
-    //     }
-    // );
-    // insta::assert_yaml_snapshot!(table, @"");
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct B<P, Q, 's>
+    where
+        P: Serialize + for<'a> Deserialize<'a>,
+        Q: Serialize + for<'a> Deserialize<'a>,
+    {
+        p: P,
+        q: Q,
+        s: &'s str,
+    }
+    let table: B<u64, u32> = from_bytes(&[3, 1, 2, 1, 97]).unwrap();
+    assert_eq!(
+        table,
+        B {
+            p: 1u64,
+            q: 2u32,
+            s: "a"
+        }
+    );
+}
+
+#[test]
+fn derive_serialize_skip() {
+    #[columnar(ser)]
+    #[derive(Debug, PartialEq)]
+    struct A {
+        a: u64,
+        #[columnar(skip)]
+        b: u32,
+    }
+    let s = A { a: 1, b: 2 };
+    let bytes = to_vec(&s).unwrap();
+    insta::assert_yaml_snapshot!(bytes);
+}
+
+#[test]
+fn derive_deserialize_skip() {
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct A {
+        a: u64,
+        #[columnar(skip)]
+        b: u32,
+    }
+    let s = A { a: 1, b: 2 };
+    let bytes = to_vec(&s).unwrap();
+    let a: A = from_bytes(&bytes).unwrap();
+    assert_eq!(a, A { a: 1, b: 0 });
+}
+
+#[test]
+fn derive_deserialize_borrow_str() {
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct A<'a> {
+        a: u64,
+        #[columnar(borrow)]
+        b: Cow<'a, str>,
+    }
+    let s = A {
+        a: 1,
+        b: Cow::Borrowed("hello"),
+    };
+    let bytes = to_vec(&s).unwrap();
+    let a: A = from_bytes(&bytes).unwrap();
+    if let Cow::Owned(_) = &a.b {
+        panic!("should be borrowed")
+    }
+    assert_eq!(s, a)
+}
+
+#[test]
+fn derive_deserialize_borrow_bytes() {
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct A<'a> {
+        a: u64,
+        #[columnar(borrow)]
+        b: Cow<'a, [u8]>,
+    }
+    let s = A {
+        a: 1,
+        b: Cow::Borrowed(&[4, 5, 6]),
+    };
+    let bytes = to_vec(&s).unwrap();
+    let a: A = from_bytes(&bytes).unwrap();
+    if let Cow::Owned(_) = &a.b {
+        panic!("should be borrowed")
+    }
+    assert_eq!(s, a)
+}
+
+#[test]
+fn derive_deserialize_borrow_str_optional() {
+    #[columnar(ser, de)]
+    #[derive(Debug, PartialEq)]
+    struct A<'a> {
+        a: u64,
+        #[columnar(borrow, optional, index = 0)]
+        b: Cow<'a, str>,
+    }
+    let s = A {
+        a: 1,
+        b: Cow::Borrowed("hello"),
+    };
+    let bytes = to_vec(&s).unwrap();
+    let a: A = from_bytes(&bytes).unwrap();
+    if let Cow::Owned(_) = &a.b {
+        panic!("should be borrowed")
+    }
+    assert_eq!(s, a)
 }
 
 #[test]

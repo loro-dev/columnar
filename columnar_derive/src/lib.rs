@@ -12,19 +12,26 @@ extern crate syn;
 extern crate proc_macro;
 extern crate proc_macro2;
 
+use attr::Context;
 use darling::{export::NestedMeta, Error};
 use derive::process_derive_args;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
+use serde::{de::DeParameter, ser::SerParameter};
 use syn::{parse_macro_input, DeriveInput, Item};
 
 mod args;
-use args::{get_derive_args, get_field_args_add_serde_with_to_field};
+mod ast;
+mod columnar;
+mod de;
+mod serde;
+use args::{get_derive_args, parse_field_args};
 #[cfg(feature = "analyze")]
 mod analyze;
 mod attr;
 mod derive;
+mod utils;
 
 ///
 /// Convenience macro to use the [`columnar`] system.
@@ -42,30 +49,27 @@ mod derive;
 ///
 /// // This struct will be serialized as a columnar format in another collection container.
 ///
-/// // the `vec` represents this struct will derive `VecRow` trait by macro
+/// // the `vec` represents this struct will derive `RowSer` `RowDe` trait by macro
 /// // so that this struct can be used in some container like `Vec<Data>` etc. .
 ///
-/// // the `map` represents this struct will derive `MapRow` trait by macro.
+/// // the `map` represents this struct will derive `KeyRowSer` `KeyRowDe` trait by macro.
 /// // so that this struct can be used in some container like `HashMap<K, Data>` etc. .
 ///
-/// #[columnar(vec, map)]
-/// #[derive(Serialize, Deserialize)]
+/// #[columnar(vec, map, ser, de)]
 /// struct Data{
 ///     // in `columnar` system, this field will be considered as a `Vec<Cow<T>>` type with
 ///     // index 1, and using `Rle` strategy to encode it.
-///     #[columnar(index = 1, strategy = "Rle")]
+///     #[columnar(optional, index = 1, strategy = "Rle")]
 ///     id: u64,
 /// }
 ///
 /// // The container of `Data` struct.
 /// // This struct need also be annotated with `#[columnar]` to use the `columnar` attributes.
 ///
-/// #[columnar]
+/// #[columnar(ser, de)]
 /// struct Store{
-///     // this attribute represents this field will use `VecRow` trait to serialize and deserialize it by columnar format.
-///     // this line is equivalent to `#[serde(serialize_with = "VecRow::serialize_columns")]` and #[serde(deserialize_with = "VecRow::deserialize_columns")].
-///     // more details about `serde` attributes, please refer to the [`serde`](https://serde.rs) crate.
-///     #[columnar(type="vec")]
+///     // this attribute represents this field will by wrapped by `ColumnarVec` to serialize and deserialize it by columnar format.
+///     #[columnar(class="vec")]
 ///     data: Vec<Data>,
 /// }
 ///
@@ -97,32 +101,30 @@ pub fn columnar(attr: TokenStream, input: TokenStream) -> TokenStream {
 /// [`columnar_derive`] mainly does two things:
 ///
 /// 1. iterate all fields to check if there is any `columnar` attribute and parse all fields' `columnar` attributes to [`FieldArgs`].
-///    if there is a `type` attribute, the field will be added `#[serde(serialize_with=..., deserialize_with=...)]`.
-/// 2. generate `VecRow` and `MapRow` trait implementations for the struct.
+///    if there is a `class` attribute, the field will be wrapped by `ColumnarVec` or `ColumnarMap`.
+/// 2. generate `RowSer` and `KeyRowSer` trait implementations for the struct.
 ///
 fn expand_columnar(args: Vec<NestedMeta>, mut st: DeriveInput) -> syn::Result<TokenStream> {
-    check_derive_serde(&st)?;
     let derive_args = get_derive_args(&args)?;
+
+    let mut ans = vec![quote::quote!(#st)];
+    let context = Context::new(&st, derive_args)?;
+    if derive_args.ser {
+        ans.push(SerParameter::from_ctx(&context).derive_ser()?);
+    }
+    if derive_args.de {
+        ans.push(DeParameter::from_ctx(&context)?.derive_de()?);
+    }
+
     // iterate all fields to check if there is any `columnar` attribute
     // and parse all fields' `columnar` attributes to [`FieldArgs`].
-    // add [`serde_with`] attributes to the fields.
-    let field_args = get_field_args_add_serde_with_to_field(&mut st, &derive_args)?;
-    let input = quote::quote!(#st);
+    let field_args = parse_field_args(&mut st)?;
     if let Some(field_args) = field_args {
         // struct
         let derive_trait_tokens = process_derive_args(&derive_args, &st, &field_args)?;
-        Ok(quote!(#input #derive_trait_tokens).into())
-    } else {
-        // enum
-        Ok(input.into())
+        ans.push(derive_trait_tokens);
     }
-}
-
-/// The struct annotated with `columnar` *MUST* be derived with `Serialize` and `Deserialize` trait.
-#[allow(dead_code)]
-fn check_derive_serde(_: &DeriveInput) -> syn::Result<()> {
-    // TODO: adjust this whether derive Serialize and Deserialize
-    Ok(())
+    Ok(quote!(#(#ans)*).into())
 }
 
 /// Add [`__private_consume_columnar_attributes`] derive attribute to the input struct.

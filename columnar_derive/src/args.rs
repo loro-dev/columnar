@@ -1,13 +1,15 @@
+use std::collections::BTreeSet;
+
 use darling::ast::NestedMeta;
 #[allow(unused_imports)]
 use darling::{util::Override, Error as DarlingError, FromField, FromMeta, FromVariant};
+use proc_macro2::{Spacing, TokenTree};
 #[allow(unused_imports)]
 use proc_macro2::{Span, TokenStream};
-use syn::DeriveInput;
+use quote::ToTokens;
+use syn::{parse::ParseStream, spanned::Spanned, DeriveInput, Lifetime, LitStr, Token};
 
-use crate::attr::{add_serde_skip, add_serde_with};
-
-#[derive(Debug, FromMeta)]
+#[derive(Debug, Clone, Copy, FromMeta)]
 pub struct DeriveArgs {
     #[darling(default)]
     pub(crate) vec: bool,
@@ -48,14 +50,21 @@ pub struct FieldArgs {
     #[darling(rename = "class")]
     pub type_: Option<String>,
     pub compress: Option<Override<CompressArgs>>,
+    /// Same as the `borrow` of `serde`
+    pub borrow: Option<Override<LitStr>>,
+    /// Same as the `skip` of `serde`
+    #[darling(default)]
+    pub skip: bool,
 }
 
 #[cfg(not(feature = "compress"))]
 #[derive(FromField, Debug)]
 #[darling(attributes(columnar))]
 pub struct FieldArgs {
+    /// the name of field
     pub ident: Option<syn::Ident>,
     pub vis: syn::Visibility,
+    /// the type of field
     pub ty: syn::Type,
     pub attrs: Vec<syn::Attribute>,
     // custom attributes
@@ -69,6 +78,11 @@ pub struct FieldArgs {
     /// the type of the column format, vec or map.
     #[darling(rename = "class")]
     pub type_: Option<String>,
+    /// Same as the `borrow` of `serde`
+    pub borrow: Option<Override<LitStr>>,
+    /// Same as the `skip` of serde
+    #[darling(default)]
+    pub skip: bool,
 }
 
 #[cfg(feature = "compress")]
@@ -117,6 +131,9 @@ pub trait Args {
     fn optional(&self) -> bool;
     fn strategy(&self) -> &Option<String>;
     fn type_(&self) -> Option<AsType>;
+    fn has_borrow_lifetime(&self) -> bool;
+    fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>>;
+    fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>>;
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>>;
     #[cfg(feature = "compress")]
@@ -196,9 +213,92 @@ impl Args for FieldArgs {
         }
     }
 
+    fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
+        if self.has_borrow_lifetime() {
+            Ok(self.borrow_lifetimes()?.unwrap())
+        } else {
+            let mut lifetimes = BTreeSet::new();
+            collect_lifetimes(&self.ty, &mut lifetimes);
+            Ok(lifetimes)
+        }
+    }
+
+    fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
+        if self.borrow.is_none() {
+            return Ok(None);
+        }
+
+        match self.borrow.as_ref().unwrap() {
+            Override::Inherit => {
+                let mut lifetimes = BTreeSet::new();
+                collect_lifetimes(&self.ty, &mut lifetimes);
+                if lifetimes.is_empty() {
+                    Err(syn::Error::new_spanned(
+                        self.ty.clone().into_token_stream(),
+                        "at least one lifetime must be borrowed",
+                    ))
+                } else {
+                    Ok(Some(lifetimes))
+                }
+            }
+            Override::Explicit(string) => {
+                if let Ok(lifetimes) = string.parse_with(|input: ParseStream| {
+                    let mut set = BTreeSet::new();
+                    while !input.is_empty() {
+                        let lifetime: Lifetime = input.parse()?;
+                        if !set.insert(lifetime.clone()) {
+                            return Err(syn::Error::new_spanned(
+                                string.clone().into_token_stream(),
+                                format!("duplicate borrowed lifetime `{}`", lifetime),
+                            ));
+                        }
+                        if input.is_empty() {
+                            break;
+                        }
+                        input.parse::<Token![+]>()?;
+                    }
+                    Ok(set)
+                }) {
+                    if lifetimes.is_empty() {
+                        return Err(syn::Error::new_spanned(
+                            string.clone().into_token_stream(),
+                            "at least one lifetime must be borrowed",
+                        ));
+                    }
+
+                    if let Ok(field_lifetimes) = self.lifetime() {
+                        for l in &lifetimes {
+                            if !field_lifetimes.contains(l) {
+                                return Err(syn::Error::new(
+                                    self.ident.span(),
+                                    format!(
+                                        "field `{}` does not have lifetime {}",
+                                        self.ident.as_ref().unwrap(),
+                                        l,
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+
+                    Ok(Some(lifetimes))
+                } else {
+                    Err(syn::Error::new_spanned(
+                        string.clone().into_token_stream(),
+                        format!("failed to parse borrowed lifetimes: {:?}", string.value()),
+                    ))
+                }
+            }
+        }
+    }
+
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>> {
         &self.compress
+    }
+
+    fn has_borrow_lifetime(&self) -> bool {
+        self.borrow.is_some()
     }
 }
 
@@ -229,9 +329,19 @@ impl Args for VariantArgs {
             None => None,
         }
     }
+    fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
+        unimplemented!("Variant have not implemented borrow")
+    }
+    fn has_borrow_lifetime(&self) -> bool {
+        false
+    }
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>> {
         &None
+    }
+
+    fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
+        unimplemented!("Variant have not implemented borrow")
     }
 }
 
@@ -241,17 +351,14 @@ pub fn get_derive_args(args: &[NestedMeta]) -> syn::Result<DeriveArgs> {
         Err(e) => {
             eprintln!("get_derive_args error: {}", e);
             Err(DarlingError::unsupported_format(
-                "columnar only supports attributes with `compatible`, `vec`, `map` and `ser`, `de`",
+                "columnar only supports attributes with `vec`, `map` and `ser`, `de`",
             )
             .into())
         }
     }
 }
 
-pub fn get_field_args_add_serde_with_to_field(
-    st: &mut DeriveInput,
-    derive_args: &DeriveArgs,
-) -> syn::Result<Option<Vec<FieldArgs>>> {
+pub fn parse_field_args(st: &mut DeriveInput) -> syn::Result<Option<Vec<FieldArgs>>> {
     match &mut st.data {
         syn::Data::Struct(syn::DataStruct {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
@@ -265,35 +372,15 @@ pub fn get_field_args_add_serde_with_to_field(
             check_args_validate(&args)?;
             Ok(Some(args))
         }
-        syn::Data::Enum(syn::DataEnum { variants, .. }) => {
-            process_enum_variants(variants, derive_args)?;
-            Ok(None)
-        }
+        syn::Data::Enum(syn::DataEnum { variants: _, .. }) => Err(syn::Error::new_spanned(
+            st,
+            "only supported named struct type",
+        )),
         _ => Err(syn::Error::new_spanned(
             st,
-            "only supported named struct or enum type",
+            "only supported named struct type",
         )),
     }
-}
-
-fn process_enum_variants(
-    variants: &mut syn::punctuated::Punctuated<syn::Variant, syn::token::Comma>,
-    derive_args: &DeriveArgs,
-) -> syn::Result<Vec<VariantArgs>> {
-    let mut fields_args = Vec::with_capacity(variants.len());
-    for variant in variants.iter_mut() {
-        let field_args = VariantArgs::from_variant(variant)?;
-        // skip
-        add_serde_skip(variant, &field_args)?;
-        if field_args.skip {
-            fields_args.push(field_args);
-            continue;
-        }
-        // serde with
-        add_serde_with(variant, &field_args, derive_args)?;
-        fields_args.push(field_args);
-    }
-    Ok(fields_args)
 }
 
 pub fn check_args_validate(field_args: &[FieldArgs]) -> syn::Result<()> {
@@ -337,4 +424,88 @@ pub fn check_args_validate(field_args: &[FieldArgs]) -> syn::Result<()> {
         }
     }
     Ok(())
+}
+
+fn collect_lifetimes(ty: &syn::Type, out: &mut BTreeSet<syn::Lifetime>) {
+    match ty {
+        syn::Type::Slice(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Array(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Ptr(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Reference(ty) => {
+            out.extend(ty.lifetime.iter().cloned());
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Tuple(ty) => {
+            for elem in &ty.elems {
+                collect_lifetimes(elem, out);
+            }
+        }
+        syn::Type::Path(ty) => {
+            if let Some(qself) = &ty.qself {
+                collect_lifetimes(&qself.ty, out);
+            }
+            for seg in &ty.path.segments {
+                if let syn::PathArguments::AngleBracketed(bracketed) = &seg.arguments {
+                    for arg in &bracketed.args {
+                        match arg {
+                            syn::GenericArgument::Lifetime(lifetime) => {
+                                out.insert(lifetime.clone());
+                            }
+                            syn::GenericArgument::Type(ty) => {
+                                collect_lifetimes(ty, out);
+                            }
+                            syn::GenericArgument::AssocType(binding) => {
+                                collect_lifetimes(&binding.ty, out);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        syn::Type::Paren(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Group(ty) => {
+            collect_lifetimes(&ty.elem, out);
+        }
+        syn::Type::Macro(ty) => {
+            collect_lifetimes_from_tokens(ty.mac.tokens.clone(), out);
+        }
+        syn::Type::BareFn(_)
+        | syn::Type::Never(_)
+        | syn::Type::TraitObject(_)
+        | syn::Type::ImplTrait(_)
+        | syn::Type::Infer(_)
+        | syn::Type::Verbatim(_) => {}
+
+        #[cfg_attr(all(test, exhaustive), deny(non_exhaustive_omitted_patterns))]
+        _ => {}
+    }
+}
+fn collect_lifetimes_from_tokens(tokens: TokenStream, out: &mut BTreeSet<syn::Lifetime>) {
+    let mut iter = tokens.into_iter();
+    while let Some(tt) = iter.next() {
+        match &tt {
+            TokenTree::Punct(op) if op.as_char() == '\'' && op.spacing() == Spacing::Joint => {
+                if let Some(TokenTree::Ident(ident)) = iter.next() {
+                    out.insert(syn::Lifetime {
+                        apostrophe: op.span(),
+                        ident,
+                    });
+                }
+            }
+            TokenTree::Group(group) => {
+                let tokens = group.stream();
+                collect_lifetimes_from_tokens(tokens, out);
+            }
+            _ => {}
+        }
+    }
 }
