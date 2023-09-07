@@ -28,7 +28,7 @@ pub trait ColumnTrait {
 ///
 /// including compress config and some ones that may be used in the future.
 #[cfg(feature = "compress")]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnAttr {
     pub index: Option<usize>,
     pub compress: Option<CompressConfig>,

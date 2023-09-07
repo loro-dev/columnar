@@ -47,3 +47,9 @@ name = "data"
 path = "fuzz_targets/data.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "iter_from_bytes"
+path = "fuzz_targets/iter_from_bytes.rs"
+test = false
+doc = false

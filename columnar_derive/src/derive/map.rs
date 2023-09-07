@@ -194,8 +194,8 @@ fn generate_with_map_per_columns(
         let column_content_token = quote::quote!(let #column_name = #column_type_token::new(
                 #column_name,
                 ::serde_columnar::ColumnAttr{
-                    // TODO: index
                     index: None,
+                    compress: #compress_quote
                 }
             ););
         #[cfg(not(feature = "compress"))]

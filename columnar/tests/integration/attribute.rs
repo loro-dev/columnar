@@ -360,7 +360,8 @@ fn row_vec_de() {
     let init_b = B {
         data: vec![A { a: 1 }, A { a: 2 }],
     };
-    let bytes = vec![1, 1, 2, 1, 2];
+
+    let bytes = vec![1, 1, 4, 0, 2, 1, 2];
     let b: B = from_bytes(&bytes).unwrap();
     assert_eq!(init_b, b);
 }
@@ -398,7 +399,7 @@ fn row_map_de() {
     }
     let data = vec![(1, A { a: 1 }), (2, A { a: 2 })].into_iter().collect();
     let init_b = B { data };
-    let bytes = vec![1, 2, 2, 2, 1, 2, 2, 1];
+    let bytes = vec![1, 2, 2, 1, 2, 4, 0, 2, 1, 2];
     let b: B = from_bytes(&bytes).unwrap();
     assert_eq!(init_b, b);
 }
@@ -588,7 +589,6 @@ fn nested() {
         map: vec![(1, b.clone()), (2, b)].into_iter().collect(),
     };
     let bytes = to_vec(&c).unwrap();
-    println!("{:?}", bytes);
     let read_c = from_bytes(&bytes).unwrap();
     assert_eq!(c, read_c);
     insta::assert_yaml_snapshot!(bytes);

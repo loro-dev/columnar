@@ -18,7 +18,6 @@ where
     T: for<'d> Deserialize<'d>,
 {
     pub fn new(bytes: &'de [u8]) -> Self {
-        println!("GenericIter bytes {:?}", bytes);
         Self {
             de: Deserializer::from_flavor(Cursor::new(bytes)),
             _ty: Default::default(),
@@ -273,7 +272,14 @@ where
     where
         D: serde::Deserializer<'de>,
     {
-        let bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
+        let mut bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
+        println!("de {:?}", bytes);
+        #[cfg(feature = "compress")]
+        {}
+        #[cfg(not(feature = "compress"))]
+        {
+            bytes = &bytes[1..]
+        }
         Ok(GenericIter::new(bytes))
     }
 }

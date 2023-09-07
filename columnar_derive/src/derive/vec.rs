@@ -123,6 +123,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
             #column_name,
             ::serde_columnar::ColumnAttr{
                 index: None,
+                compress: #compress_quote
             }
         ););
     #[cfg(not(feature = "compress"))]

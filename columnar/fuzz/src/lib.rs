@@ -1,25 +1,24 @@
 use arbitrary::{Arbitrary, Unstructured};
 use serde::{ser::SerializeTuple, Deserialize, Serialize};
-use serde_columnar::columnar;
+use serde_columnar::{columnar, iterable::*};
+use std::borrow::Cow;
 use std::collections::HashMap;
-
-type ID = u64;
 
 fn arbitrary_float(u: &mut Unstructured) -> arbitrary::Result<f64> {
     u.arbitrary::<f64>()
         .map(|f| if f.is_nan() { 0.0 } else { f })
 }
 
-#[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, Arbitrary, Default)]
+#[columnar(vec, map, ser, de, iterable)]
+#[derive(Debug, Clone, Arbitrary, Default)]
 pub struct Data {
     #[columnar(strategy = "Rle")]
     id: u8,
-    #[columnar(strategy = "DeltaRle", original_type = "u64")]
-    id2: ID,
+    #[columnar(strategy = "DeltaRle")]
+    id2: u64,
     #[columnar(strategy = "Rle")]
     id3: usize,
-    #[columnar(strategy = "DeltaRle", original_type = "i64")]
+    #[columnar(strategy = "DeltaRle")]
     id4: i64,
     id5: i128,
     #[arbitrary(with=arbitrary_float)]
@@ -27,11 +26,10 @@ pub struct Data {
     id7: (u16, i32),
     #[columnar(strategy = "BoolRle")]
     b: bool,
-    #[columnar(compress)]
     name: String,
-    #[columnar(type = "vec")]
+    #[columnar(class = "vec", iter = "Data")]
     vec: Vec<Data>,
-    #[columnar(type = "map")]
+    #[columnar(class = "map")]
     map: HashMap<String, Data>,
 }
 
@@ -51,28 +49,32 @@ impl PartialEq for Data {
     }
 }
 
-#[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Serialize, Deserialize, Arbitrary, PartialEq)]
-pub struct VecStore {
-    #[columnar(type = "vec")]
+#[columnar(vec, map, ser, de, iterable)]
+#[derive(Debug, Clone, Arbitrary, PartialEq)]
+pub struct VecStore<'a> {
+    #[columnar(class = "vec", iter = "Data")]
     data: Vec<Data>,
+    #[columnar(class = "vec")]
+    data2: Vec<Data>,
     #[columnar(strategy = "DeltaRle")]
     id: u64,
+    #[columnar(borrow)]
+    borrow_str: Cow<'a, str>,
 }
 
-#[columnar]
-#[derive(Debug, Clone, Serialize, Deserialize, Arbitrary, PartialEq)]
+#[columnar(ser, de)]
+#[derive(Debug, Clone, Arbitrary, PartialEq)]
 pub struct MapStore {
-    #[columnar(type = "map")]
+    #[columnar(class = "map")]
     data: HashMap<u64, Data>,
     id: u64,
 }
 
-#[columnar]
-#[derive(Debug, Clone, Serialize, Deserialize, Arbitrary, PartialEq)]
-pub struct NestedStore {
-    #[columnar(type = "vec")]
-    stores: Vec<VecStore>,
-    #[columnar(type = "map")]
-    map_stores: HashMap<u64, VecStore>,
+#[columnar(ser, de)]
+#[derive(Debug, Clone, Arbitrary, PartialEq)]
+pub struct NestedStore<'a> {
+    #[columnar(class = "vec", iter = "VecStore<'a>")]
+    stores: Vec<VecStore<'a>>,
+    #[columnar(class = "map")]
+    map_stores: HashMap<u64, VecStore<'a>>,
 }

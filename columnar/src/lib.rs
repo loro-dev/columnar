@@ -137,9 +137,10 @@ pub fn from_bytes<'de, 'a: 'de, T: Deserialize<'de>>(bytes: &'a [u8]) -> Result<
         .map_err(|e| ColumnarError::SerializeError(e as postcard::Error))
 }
 
-pub fn iter_from_bytes<'de, T: iterable::TableIter<'de>>(bytes: &'de [u8]) -> T::Iter {
+pub fn iter_from_bytes<'de, T: iterable::TableIter<'de>>(
+    bytes: &'de [u8],
+) -> Result<T::Iter, ColumnarError> {
     let mut decoder = ColumnarDecoder::<'de>::new(bytes);
     T::Iter::deserialize(decoder.deref_mut())
         .map_err(|e| ColumnarError::SerializeError(e as postcard::Error))
-        .unwrap()
 }

@@ -1,5 +1,4 @@
-use quote::ToTokens;
-use syn::{parse_quote, GenericArgument, Generics, PathArguments, Type, WherePredicate};
+use syn::{Generics, WherePredicate};
 
 pub fn add_generics_clause_to_where(
     generics: Vec<WherePredicate>,

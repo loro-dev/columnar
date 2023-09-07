@@ -1,7 +1,0 @@
----
-source: columnar/tests/integration/attribute.rs
-expression: b
----
-- 1
-- 2
-

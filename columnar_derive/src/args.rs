@@ -50,8 +50,7 @@ pub struct FieldArgs {
     /// the strategy to convert the field values to a column.
     pub strategy: Option<String>,
     /// the type of the column format, vec or map.
-    #[darling(rename = "class")]
-    pub type_: Option<String>,
+    pub class: Option<String>,
     pub compress: Option<Override<CompressArgs>>,
     /// Same as the `borrow` of `serde`
     pub borrow: Option<Override<LitStr>>,
@@ -80,7 +79,6 @@ pub struct FieldArgs {
     /// the strategy to convert the field values to a column.
     pub strategy: Option<String>,
     /// the type of the column format, vec or map.
-    #[darling(rename = "class")]
     pub class: Option<String>,
     /// Same as the `borrow` of `serde`
     pub borrow: Option<Override<LitStr>>,

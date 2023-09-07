@@ -6,7 +6,7 @@ use thiserror::Error;
 /// This is the error type used by `serde_columnar`
 #[derive(Error, Debug)]
 pub enum ColumnarError {
-    #[error("serialize or deserialize error")]
+    #[error("postcard error: {0}")]
     SerializeError(#[from] PostcardError),
     #[error("`{0}` during columnar encoding")]
     ColumnarEncodeError(String),
@@ -18,7 +18,7 @@ pub enum ColumnarError {
     RleDecodeError(String),
     #[error("invalid strategy code `{0}`")]
     InvalidStrategy(u8),
-    #[error("io error")]
+    #[error("io error: {0}")]
     IOError(#[from] io::Error),
     #[error("overflow error")]
     OverflowError,
