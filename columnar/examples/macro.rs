@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{collections::BTreeMap};
 
 use serde_columnar::columnar;
 

@@ -1,5 +1,5 @@
-use serde_columnar::{columnar, from_bytes, iter_from_bytes, iterable::*, to_vec};
-use std::{borrow::Cow, collections::HashMap, vec};
+use serde_columnar::{columnar, iter_from_bytes, iterable::*, to_vec};
+use std::{collections::HashMap, vec};
 #[columnar(vec, map, ser, de, iterable)]
 #[derive(Debug, Clone, Default)]
 pub struct Data {
@@ -83,6 +83,6 @@ fn fuzz_vec() {
     let buf = to_vec(&data).unwrap();
     println!("data {:?}", &buf);
 
-    let store2 = iter_from_bytes::<VecStore>(&buf).unwrap();
+    let _store2 = iter_from_bytes::<VecStore>(&buf).unwrap();
     // assert_eq!(store, store2);
 }
