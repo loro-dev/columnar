@@ -158,7 +158,7 @@ where
         pub struct ColumnVisitor<T>(PhantomData<T>);
         impl<'de, T> serde::de::Visitor<'de> for ColumnVisitor<T>
         where
-            T: Serialize + for<'d> Deserialize<'d>,
+            T: Serialize + for<'d> serde::Deserialize<'d>,
         {
             type Value = GenericColumn<T>;
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

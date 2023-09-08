@@ -37,11 +37,20 @@ impl TableIterFieldAttr {
         }
         assert!(self.class.is_some());
         assert!(self.iter_item.is_some());
-        let class = self.class.clone().unwrap();
+        let class = self.class.clone().ok_or(syn::Error::new_spanned(
+            self.ty.clone(),
+            "class should not be empty",
+        ))?;
         if class.eq("map") {
-            unimplemented!("map")
+            return Err(syn::Error::new_spanned(
+                self.ty.clone(),
+                "class `map` have not impl `iter`",
+            ));
         }
-        let mut iter_item = self.iter_item.clone().unwrap();
+        let mut iter_item = self.iter_item.clone().ok_or(syn::Error::new_spanned(
+            self.ty.clone(),
+            "iter should not be empty",
+        ))?;
         add_lifetime_to_type(
             &mut iter_item,
             GenericArgument::Lifetime(parse_quote!('__iter)),
@@ -51,13 +60,21 @@ impl TableIterFieldAttr {
         )?;
         let name = &self.name;
 
+        // no borrow and class
+        let attrs = self.add_generic_columnar_attributes();
+        let attrs = if !attrs.is_empty() {
+            quote::quote!(#[columnar(#(#attrs),*)])
+        } else {
+            quote::quote!()
+        };
         let ans = quote::quote!(
+            #attrs
             pub #name: #iter_item
         );
         Ok(ans)
     }
 
-    fn generate_table_columnar_attribute(&self) -> syn::Result<Vec<TokenStream>> {
+    fn generate_table_normal_field_columnar_attribute(&self) -> syn::Result<Vec<TokenStream>> {
         let mut ans = Vec::new();
         if let Some(class) = &self.class {
             let c = class.as_str();
@@ -82,7 +99,7 @@ impl TableIterFieldAttr {
     fn generate_table_normal_field(&self) -> syn::Result<TokenStream> {
         let name = &self.name;
         let ty = &self.ty;
-        let mut attributes = self.generate_table_columnar_attribute()?;
+        let mut attributes = self.generate_table_normal_field_columnar_attribute()?;
         attributes.extend(self.add_generic_columnar_attributes());
         let attrs = if !attributes.is_empty() {
             quote::quote!(#[columnar(#(#attributes),*)])
@@ -106,7 +123,9 @@ impl TableIterFieldAttr {
             Strategy::Rle => quote::quote!(#name: AnyRleIter<'__iter, #ty>),
             Strategy::BoolRle => quote::quote!(#name: BoolRleIter<'__iter>),
             Strategy::DeltaRle => quote::quote!(#name: DeltaRleIter<'__iter, #ty>),
-            Strategy::None => parse_quote!(#name: GenericIter<'__iter, #ty>),
+            Strategy::None => {
+                parse_quote!(#name: GenericIter<'__iter, #ty>)
+            }
         };
         let mut attrs = self.generate_row_columnar_attribute()?;
         attrs.extend(self.add_generic_columnar_attributes());
@@ -245,6 +264,8 @@ impl TableIterParameter {
                 }
             };
         );
+
+        println!("@#####table {:?}", ans.to_string());
 
         Ok(ans)
     }

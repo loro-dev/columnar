@@ -71,8 +71,7 @@ impl DeFieldAttrs {
 
     fn generate_normal_field(&self, params: &DeParameter) -> TokenStream {
         let field_name = &self.name;
-        if self.borrow.is_some() {
-            let path = self.borrow_with().unwrap();
+        if let Some(path) = self.borrow_with() {
             let ty = &self.ty;
             let (wrapper, wrapper_ty) = wrap_deserialize_with(params, &quote::quote!(#ty), &path);
             quote::quote!(
@@ -93,8 +92,7 @@ impl DeFieldAttrs {
     fn generate_normal_field_from_mapping(&self, params: &DeParameter) -> TokenStream {
         let field_name = &self.name;
         let index = self.index.unwrap();
-        if self.borrow.is_some() {
-            let path = self.borrow_with().unwrap();
+        if let Some(path) = self.borrow_with() {
             let ty = &self.ty;
             let (wrapper, wrapper_ty) = wrap_deserialize_with(params, &quote::quote!(#ty), &path);
 

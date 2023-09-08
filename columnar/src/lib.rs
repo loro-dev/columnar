@@ -96,7 +96,7 @@ mod columnar_internal;
 pub use columnar_internal::{ColumnarDecoder, ColumnarEncoder};
 pub mod iterable;
 mod row;
-pub use itertools::{izip, MultiUnzip};
+pub use itertools::{izip, Itertools, MultiUnzip};
 pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 use serde::{Deserialize, Serialize};
 mod strategy;

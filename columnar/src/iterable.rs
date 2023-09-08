@@ -10,16 +10,28 @@ use serde::Deserialize;
 
 pub struct GenericIter<'de, T> {
     de: Deserializer<'de, Cursor<'de>>,
+    always_default: bool,
     _ty: PhantomData<T>,
 }
 
 impl<'de, T> GenericIter<'de, T>
 where
-    T: for<'d> Deserialize<'d>,
+    T: Deserialize<'de>,
 {
     pub fn new(bytes: &'de [u8]) -> Self {
         Self {
             de: Deserializer::from_flavor(Cursor::new(bytes)),
+            always_default: false,
+            _ty: Default::default(),
+        }
+    }
+}
+
+impl<'de, T: Default> Default for GenericIter<'de, T> {
+    fn default() -> Self {
+        Self {
+            de: Deserializer::from_flavor(Cursor::new(&[])),
+            always_default: true,
             _ty: Default::default(),
         }
     }
@@ -27,10 +39,13 @@ where
 
 impl<'de, T> Iterator for GenericIter<'de, T>
 where
-    T: for<'d> Deserialize<'d>,
+    T: Default + Deserialize<'de>,
 {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
+        if self.always_default {
+            return Some(T::default());
+        }
         T::deserialize(&mut self.de).ok()
     }
 }
@@ -266,7 +281,7 @@ impl<'de> Deserialize<'de> for BoolRleIter<'de> {
 
 impl<'de, T> Deserialize<'de> for GenericIter<'de, T>
 where
-    T: for<'d> Deserialize<'d>,
+    T: Deserialize<'de>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
