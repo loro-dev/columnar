@@ -20,10 +20,10 @@ pub struct TableIterFieldAttr {
     class: Option<String>,
     iter_item: Option<Type>,
     strategy: Strategy,
-    pub index: Option<usize>,
-    pub optional: bool,
-    pub borrow: Option<Override<LitStr>>,
-    pub skip: bool,
+    index: Option<usize>,
+    optional: bool,
+    borrow: Option<Override<LitStr>>,
+    skip: bool,
 }
 
 impl TableIterFieldAttr {
@@ -227,7 +227,7 @@ impl TableIterParameter {
         }
 
         let this_table_iter_struct_name = syn::Ident::new(
-            &format!("TableIter{}", struct_name_ident),
+            &format!("{}Iter", struct_name_ident),
             proc_macro2::Span::call_site(),
         );
         let (de_impl_generics, de_ty_generics, ty_generics, where_clause) =
