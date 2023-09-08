@@ -1,5 +1,6 @@
+use darling::util::Override;
 use proc_macro2::{Ident, TokenStream};
-use syn::{parse_quote, GenericArgument, Generics, Type, Visibility};
+use syn::{parse_quote, GenericArgument, Generics, LitStr, Type, Visibility};
 
 use crate::{
     args::{Args, Strategy},
@@ -19,6 +20,10 @@ pub struct TableIterFieldAttr {
     class: Option<String>,
     iter_item: Option<Type>,
     strategy: Strategy,
+    pub index: Option<usize>,
+    pub optional: bool,
+    pub borrow: Option<Override<LitStr>>,
+    pub skip: bool,
 }
 
 impl TableIterFieldAttr {
@@ -52,20 +57,33 @@ impl TableIterFieldAttr {
         Ok(ans)
     }
 
-    fn generate_columnar_attribute(&self) -> syn::Result<Vec<TokenStream>> {
+    fn generate_table_columnar_attribute(&self) -> syn::Result<Vec<TokenStream>> {
         let mut ans = Vec::new();
         if let Some(class) = &self.class {
             let c = class.as_str();
             ans.push(quote::quote!(class = #c));
         }
+        if let Some(borrow) = &self.borrow {
+            let borrow_attr = match borrow {
+                Override::Inherit => {
+                    quote::quote!(borrow)
+                }
+                Override::Explicit(borrow) => {
+                    quote::quote!(borrow=#borrow)
+                }
+            };
+            ans.push(borrow_attr);
+        }
+
         Ok(ans)
     }
 
     /// id: u32
-    fn generate_normal_field(&self) -> syn::Result<TokenStream> {
+    fn generate_table_normal_field(&self) -> syn::Result<TokenStream> {
         let name = &self.name;
         let ty = &self.ty;
-        let attributes = self.generate_columnar_attribute()?;
+        let mut attributes = self.generate_table_columnar_attribute()?;
+        attributes.extend(self.add_generic_columnar_attributes());
         let attrs = if !attributes.is_empty() {
             quote::quote!(#[columnar(#(#attributes),*)])
         } else {
@@ -90,16 +108,57 @@ impl TableIterFieldAttr {
             Strategy::DeltaRle => quote::quote!(#name: DeltaRleIter<'__iter, #ty>),
             Strategy::None => parse_quote!(#name: GenericIter<'__iter, #ty>),
         };
+        let mut attrs = self.generate_row_columnar_attribute()?;
+        attrs.extend(self.add_generic_columnar_attributes());
+
+        let ans = if !attrs.is_empty() {
+            quote::quote!(
+                #[columnar(#(#attrs),*)]
+                #ans
+            )
+        } else {
+            ans
+        };
+
         Ok(ans)
     }
 
     // let a = self.a.next();
-    fn generate_row_per_iter_next_field(&self) -> syn::Result<TokenStream> {
+    fn generate_row_per_iter_next_field(&self) -> TokenStream {
         let name = &self.name;
         let ans = quote::quote!(
             let #name = self.#name.next();
         );
+        ans
+    }
+
+    fn generate_row_columnar_attribute(&self) -> syn::Result<Vec<TokenStream>> {
+        let mut ans = Vec::new();
+        if let Some(borrow) = &self.borrow {
+            let borrow_attr = match borrow {
+                Override::Inherit => {
+                    quote::quote!(borrow)
+                }
+                Override::Explicit(borrow) => {
+                    quote::quote!(borrow=#borrow)
+                }
+            };
+            ans.push(borrow_attr);
+        }
+
         Ok(ans)
+    }
+
+    fn add_generic_columnar_attributes(&self) -> Vec<TokenStream> {
+        let mut attrs = Vec::with_capacity(2);
+        if self.skip {
+            attrs.push(quote::quote!(skip));
+        }
+        if self.optional {
+            let index = self.index.unwrap();
+            attrs.push(quote::quote!(optional, index=#index));
+        }
+        attrs
     }
 }
 
@@ -128,6 +187,10 @@ impl TableIterParameter {
                 class: f.class.clone(),
                 iter_item: f.iter.clone(),
                 strategy: f.strategy(),
+                index: f.index,
+                optional: f.optional,
+                borrow: f.borrow.clone(),
+                skip: f.skip,
             };
             field_attrs.push(tf);
         }
@@ -190,7 +253,7 @@ impl TableIterParameter {
         if field.class.is_some() && field.iter_item.is_some() {
             field.generate_class_iter_field()
         } else {
-            field.generate_normal_field()
+            field.generate_table_normal_field()
         }
     }
 
@@ -237,6 +300,7 @@ impl TableIterParameter {
             .collect();
 
         let ans = quote::quote!(
+            use ::serde_columnar::iterable::*;
             #[columnar(de)]
             #vis struct #this_row_iter_struct_name #iter_ty_generics #where_clause{
                 #(#per_field),*
@@ -266,7 +330,8 @@ impl TableIterParameter {
         &self,
         field: &TableIterFieldAttr,
     ) -> syn::Result<TokenStream> {
-        field.generate_row_per_iter_next_field()
+        let ans = field.generate_row_per_iter_next_field();
+        Ok(ans)
     }
 }
 
