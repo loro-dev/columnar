@@ -265,7 +265,10 @@ impl TableIterParameter {
             };
         );
 
-        println!("@#####table {:?}", ans.to_string());
+        // println!(
+        //     "@#####table {:?}",
+        //     ans.to_string().replace('\n', "").replace(r#"\""#, "\"")
+        // );
 
         Ok(ans)
     }

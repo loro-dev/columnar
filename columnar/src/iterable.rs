@@ -230,7 +230,7 @@ macro_rules! flatten_tuple {
     };
 }
 
-// TODO: compress
+// TODO: compress   maybe Cow<'_, [u8]>
 impl<'de, T: Rleable> Deserialize<'de> for AnyRleIter<'de, T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -238,7 +238,9 @@ impl<'de, T: Rleable> Deserialize<'de> for AnyRleIter<'de, T> {
     {
         let mut bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
         #[cfg(feature = "compress")]
-        {}
+        {
+            panic!("`iterable` does not support compress")
+        }
         #[cfg(not(feature = "compress"))]
         {
             bytes = &bytes[1..]
@@ -254,7 +256,9 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleIter<'de, T> {
     {
         let mut bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
         #[cfg(feature = "compress")]
-        {}
+        {
+            panic!("`iterable` does not support compress")
+        }
         #[cfg(not(feature = "compress"))]
         {
             bytes = &bytes[1..]
@@ -270,7 +274,9 @@ impl<'de> Deserialize<'de> for BoolRleIter<'de> {
     {
         let mut bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
         #[cfg(feature = "compress")]
-        {}
+        {
+            panic!("`iterable` does not support compress")
+        }
         #[cfg(not(feature = "compress"))]
         {
             bytes = &bytes[1..]
@@ -288,9 +294,10 @@ where
         D: serde::Deserializer<'de>,
     {
         let mut bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
-        println!("de {:?}", bytes);
         #[cfg(feature = "compress")]
-        {}
+        {
+            panic!("`iterable` does not support compress")
+        }
         #[cfg(not(feature = "compress"))]
         {
             bytes = &bytes[1..]

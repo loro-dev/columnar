@@ -129,7 +129,7 @@ impl<'b> ColumnDecoder<'b> {
             };
             let mut columnar_decoder = ColumnarDecoder::new(bytes);
             let column = T::decode(&mut columnar_decoder)?;
-            return Ok(column);
+            Ok(column)
         }
         #[cfg(not(feature = "compress"))]
         {

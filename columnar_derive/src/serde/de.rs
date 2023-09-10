@@ -1,11 +1,8 @@
-use std::collections::BTreeSet;
-
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
-use syn::{punctuated::Punctuated, ExprPath, Generics, Lifetime, LifetimeParam, Path, Type};
+use syn::{punctuated::Punctuated, ExprPath, Generics, LifetimeParam, Path, Type};
 
 use crate::{
-    args::Args,
     attr::Context,
     de::{borrowed_lifetimes, BorrowedLifetimes},
     utils::{is_cow, is_slice_u8, is_str},
@@ -18,7 +15,6 @@ struct DeFieldAttrs {
     index: Option<usize>,
     class: Option<String>,
     skip: bool,
-    borrow: Option<BTreeSet<Lifetime>>,
 }
 
 const DE_LIFETIME: &str = "'de";
@@ -176,7 +172,6 @@ impl DeParameter {
                 index: f.index,
                 class: f.class.clone(),
                 skip: f.skip,
-                borrow: f.borrow_lifetimes()?,
             };
             field_attrs.push(attr);
         }

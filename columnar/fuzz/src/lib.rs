@@ -1,60 +1,40 @@
-use arbitrary::{Arbitrary, Unstructured};
+use arbitrary::Arbitrary;
 use serde_columnar::{columnar, iterable::*};
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-fn arbitrary_float(u: &mut Unstructured) -> arbitrary::Result<f64> {
-    u.arbitrary::<f64>()
-        .map(|f| if f.is_nan() { 0.0 } else { f })
-}
-
 #[columnar(vec, map, ser, de, iterable)]
-#[derive(Debug, Clone, Arbitrary, Default)]
-pub struct Data {
+#[derive(Debug, Clone, Default, Arbitrary, PartialEq)]
+pub struct Data<'a> {
     #[columnar(strategy = "Rle")]
-    id: u8,
+    rle: u8,
     #[columnar(strategy = "DeltaRle")]
-    id2: u64,
-    #[columnar(strategy = "Rle")]
-    id3: usize,
-    #[columnar(strategy = "DeltaRle")]
-    id4: i64,
-    id5: i128,
-    #[arbitrary(with=arbitrary_float)]
-    id6: f64,
-    id7: (u16, i32),
+    delta_rle_uint: u64,
     #[columnar(strategy = "BoolRle")]
-    b: bool,
-    name: String,
-    #[columnar(class = "vec", iter = "Data")]
-    vec: Vec<Data>,
+    bool_rle: bool,
+    #[columnar(strategy = "Rle")]
+    tuple_rle: (u16, String),
+    #[columnar(borrow)]
+    borrow_str: Cow<'a, str>,
+    #[columnar(skip)]
+    skip: bool,
+    #[columnar(class = "vec", iter = "Data<'a>")]
+    vec: Vec<Data<'a>>,
     #[columnar(class = "map")]
-    map: HashMap<String, Data>,
-}
-
-impl PartialEq for Data {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.id2 == other.id2
-            && self.id3 == other.id3
-            && self.id4 == other.id4
-            && self.id5 == other.id5
-            && (self.id6 == other.id6 || (self.id6.is_nan() && other.id6.is_nan()))
-            && self.id7 == other.id7
-            && self.b == other.b
-            && self.name == other.name
-            && self.vec == other.vec
-            && self.map == other.map
-    }
+    map: HashMap<String, Data<'a>>,
+    #[columnar(optional, index = 0)]
+    optional: u32,
+    #[columnar(borrow, optional, index = 1)]
+    borrow_optional_bytes: Cow<'a, str>,
 }
 
 #[columnar(vec, map, ser, de, iterable)]
 #[derive(Debug, Clone, Arbitrary, PartialEq)]
 pub struct VecStore<'a> {
-    #[columnar(class = "vec", iter = "Data")]
-    data: Vec<Data>,
+    #[columnar(class = "vec", iter = "Data<'a>")]
+    data: Vec<Data<'a>>,
     #[columnar(class = "vec")]
-    data2: Vec<Data>,
+    data2: Vec<Data<'a>>,
     #[columnar(strategy = "DeltaRle")]
     id: u64,
     #[columnar(borrow)]
@@ -63,9 +43,9 @@ pub struct VecStore<'a> {
 
 #[columnar(ser, de)]
 #[derive(Debug, Clone, Arbitrary, PartialEq)]
-pub struct MapStore {
+pub struct MapStore<'a> {
     #[columnar(class = "map")]
-    data: HashMap<u64, Data>,
+    data: HashMap<u64, Data<'a>>,
     id: u64,
 }
 

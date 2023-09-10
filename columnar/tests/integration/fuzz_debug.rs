@@ -1,8 +1,8 @@
-use serde_columnar::{columnar, iter_from_bytes, iterable::*, to_vec};
+use serde_columnar::{columnar, from_bytes, iter_from_bytes, iterable::*, to_vec};
 use std::{borrow::Cow, collections::HashMap, vec};
 
 #[columnar(vec, map, ser, de, iterable)]
-#[derive(Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Data<'a> {
     #[columnar(strategy = "Rle")]
     rle: u8,
@@ -26,51 +26,28 @@ pub struct Data<'a> {
     borrow_optional_bytes: Cow<'a, str>,
 }
 
-// #[columnar(vec, map, ser, de)]
-// #[derive(Debug, Clone, PartialEq)]
-// pub struct VecStore {
-//     #[columnar(class = "vec", iter = "Data")]
-//     data: Vec<Data>,
-//     #[columnar(class = "vec")]
-//     data4: Vec<Data>,
-//     #[columnar(strategy = "DeltaRle")]
-//     id: u64,
-//     #[columnar(borrow)]
-//     borrow_str: Cow<'a, str>,
-// }
-
-// #[columnar(ser, de)]
-// #[derive(Debug, Clone, PartialEq)]
-// pub struct MapStore {
-//     #[columnar(class = "map")]
-//     data: HashMap<u64, Data>,
-//     id: u64,
-// }
-
-// #[columnar(ser, de)]
-// #[derive(Debug, Clone, PartialEq)]
-// pub struct NestedStore {
-//     #[columnar(class = "vec")]
-//     stores: Vec<VecStore>,
-//     #[columnar(class = "map")]
-//     map_stores: HashMap<u64, VecStore>,
-// }
-
 #[test]
 fn fuzz_vec() {
-    // let store = VecStore {
-    //     data: vec![],
-    //     data4: vec![],
-    //     // id: 0,
-    //     // borrow_str: Cow::Borrowed(""),
-    // };
-    // let buf = to_vec(&store).unwrap();
-    // println!("bytes {:?}", &buf);
+    let data = Data {
+        rle: 255,
+        delta_rle_uint: 612771024299098111,
+        bool_rle: true,
+        tuple_rle: (33023, "".to_string()),
+        borrow_str: "".into(),
+        skip: true,
+        vec: vec![],
+        map: Default::default(),
+        optional: 0,
+        borrow_optional_bytes: "".into(),
+    };
+    let buf = to_vec(&data).unwrap();
+    println!("bytes {:?}", &buf);
     // let v = vec![];
     // let data = ::serde_columnar::ColumnarVec::<_, Vec<Data>>::new(&v);
     // let buf = to_vec(&data).unwrap();
     // println!("data {:?}", &buf);
-
-    // let _store2 = iter_from_bytes::<VecStore>(&buf).unwrap();
+    let _store: Data = from_bytes(&buf).unwrap();
+    println!("data {:?}", _store);
+    let _store2 = iter_from_bytes::<Data>(&buf).unwrap();
     // assert_eq!(store, store2);
 }
