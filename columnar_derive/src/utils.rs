@@ -1,5 +1,8 @@
 #![allow(dead_code)]
-use syn::Type;
+use proc_macro2::Ident;
+use quote::ToTokens;
+use syn::{parse_quote, GenericArgument, PathArguments, Type};
+
 // Whether the type looks like it might be `std::borrow::Cow<T>` where elem="T".
 // This can have false negatives and false positives.
 //
@@ -133,4 +136,51 @@ pub fn ungroup(mut ty: &Type) -> &Type {
         ty = &group.elem;
     }
     ty
+}
+
+pub fn add_lifetime_to_type<F>(
+    ty: &mut Type,
+    lifetime: GenericArgument,
+    map_name_fn: Option<F>,
+) -> syn::Result<()>
+where
+    F: FnMut(&mut Ident),
+{
+    match ty {
+        Type::Path(type_path) => {
+            let last_segment = type_path
+                .path
+                .segments
+                .last_mut()
+                .expect("Expected at least one segment");
+
+            match &mut last_segment.arguments {
+                PathArguments::AngleBracketed(angle_bracketed) => {
+                    angle_bracketed.args.insert(0, lifetime);
+                }
+                PathArguments::None => {
+                    let args = vec![lifetime];
+                    last_segment.arguments =
+                        PathArguments::AngleBracketed(parse_quote!(<#(#args),*>));
+                }
+                _ => {
+                    return Err(syn::Error::new_spanned(
+                        ty.into_token_stream(),
+                        "the field type cannot add lifetime",
+                    ))
+                }
+            };
+
+            if let Some(mut map_name_fn) = map_name_fn {
+                let ident = &mut last_segment.ident;
+                map_name_fn(ident);
+            }
+
+            Ok(())
+        }
+        _ => Err(syn::Error::new_spanned(
+            ty.into_token_stream(),
+            "the field type need be Path",
+        )),
+    }
 }

@@ -21,12 +21,6 @@ impl<T: Rleable> RleColumn<T> {
     pub fn new(data: Vec<T>, attr: ColumnAttr) -> Self {
         Self { data, attr }
     }
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 impl<T> ColumnTrait for RleColumn<T>
@@ -34,9 +28,15 @@ where
     T: Rleable,
 {
     const STRATEGY: Strategy = Strategy::Rle;
-    fn attr(&self) -> &ColumnAttr {
-        &self.attr
+
+    fn len(&self) -> usize {
+        self.data.len()
     }
+
+    fn attr(&self) -> ColumnAttr {
+        self.attr
+    }
+
     fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError> {
         let mut rle_encoder = AnyRleEncoder::<T>::new(columnar_encoder);
         for data in self.data.iter() {

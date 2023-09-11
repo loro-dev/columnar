@@ -26,7 +26,8 @@ pub fn generate_derive_hashmap_row_ser(
         const _:()={
             use ::serde::ser::Error;
             use ::serde::ser::SerializeSeq;
-            use serde_columnar::MultiUnzip;
+            use ::serde_columnar::MultiUnzip;
+            use ::serde_columnar::ColumnTrait;
             #[automatically_derived]
             impl #impl_generics ::serde_columnar::KeyRowSer<__K, __IT> for #struct_name_ident #ty_generics #where_clause {
 
@@ -73,6 +74,7 @@ pub fn generate_derive_hashmap_row_de(
            use ::serde::de::Error as DeError;
             use ::serde::de::Visitor;
             use ::std::collections::HashMap;
+            use ::serde_columnar::ColumnTrait;
             #[automatically_derived]
             impl #impl_generics ::serde_columnar::KeyRowDe<'__de, __K, __IT> for #struct_name_ident #ty_generics #where_clause {
                 fn deserialize_columns<__D>(de: __D) -> Result<__IT, __D::Error>
@@ -148,12 +150,12 @@ fn generate_with_map_per_columns(
     let mut real_columns = Vec::with_capacity(field_args.len());
 
     for args in field_args.iter() {
-        // if args.skip {
-        //     continue;
-        // }
+        if args.skip {
+            continue;
+        }
         let field_name = &args.ident;
         let field_type = &args.ty;
-        let field_attr_ty = &args.type_;
+        let field_attr_ty = &args.class;
         #[cfg(feature = "compress")]
         let compress_quote = &args.compress_args()?;
         let column_name = syn::Ident::new(
@@ -189,30 +191,20 @@ fn generate_with_map_per_columns(
         // real columns
         let column_type_token = args.get_strategy_column(this_ty)?;
         #[cfg(feature = "compress")]
-        let column_content_token = if args.strategy.is_none() {
-            quote::quote!()
-        } else {
-            quote::quote!(let #column_name = #column_type_token::new(
+        let column_content_token = quote::quote!(let #column_name = #column_type_token::new(
                 #column_name,
                 ::serde_columnar::ColumnAttr{
                     index: None,
-                    // strategy: #strategy,
-                    compress: #compress_quote,
+                    compress: #compress_quote
                 }
-            );)
-        };
+            ););
         #[cfg(not(feature = "compress"))]
-        let column_content_token = if args.strategy.is_none() {
-            quote::quote!()
-        } else {
-            quote::quote!(let #column_name = #column_type_token::new(
+        let column_content_token = quote::quote!(let #column_name = #column_type_token::new(
                 #column_name,
                 ::serde_columnar::ColumnAttr{
-                    // TODO: index
                     index: None,
                 }
-            );)
-        };
+            ););
 
         real_columns.push(column_content_token);
     }
@@ -230,9 +222,13 @@ fn generate_with_map_per_columns(
 fn encode_map_per_column_to_ser(
     field_args: &Vec<FieldArgs>,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let field_len = field_args.len();
+    let mut field_len = field_args.len();
     let mut ser_elements = Vec::with_capacity(field_len);
     for args in field_args {
+        if args.skip {
+            field_len -= 1;
+            continue;
+        }
         let field_name = &args.ident;
         let optional = args.optional;
         let index = args.index;
@@ -284,12 +280,11 @@ fn generate_map_per_column_to_de_columns(
         let optional = args.optional;
         let index = args.index;
         let field_type = &args.ty;
-        let class = &args.type_;
-        // TODO: no named struct
-        // if args.skip {
-        //     field_names_build.push(quote::quote!(#field_name: ::std::default::Default::default()));
-        //     continue;
-        // }
+        let class = &args.class;
+        if args.skip {
+            field_names_build.push(quote::quote!(#field_name: ::std::default::Default::default()));
+            continue;
+        }
         let column_index = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
             proc_macro2::Span::call_site(),
@@ -366,13 +361,9 @@ fn generate_map_per_column_to_de_columns(
         };
         field_names_build.push(field_name_build);
 
-        let into_element = if args.strategy.is_none() {
-            quote::quote!(#column_index.into_iter())
-        } else {
-            quote::quote!(
-                #column_index.data.into_iter()
-            )
-        };
+        let into_element = quote::quote!(
+            #column_index.data.into_iter()
+        );
         into_iter_quote.push(into_element);
     }
 

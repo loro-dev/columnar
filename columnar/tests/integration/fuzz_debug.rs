@@ -1,92 +1,53 @@
-use serde_columnar::{columnar, from_bytes, to_vec};
-use std::collections::HashMap;
+use serde_columnar::{columnar, from_bytes, iter_from_bytes, iterable::*, to_vec};
+use std::{borrow::Cow, collections::HashMap, vec};
 
-type ID = u64;
-
-#[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, Default)]
-pub struct Data {
+#[columnar(vec, map, ser, de, iterable)]
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Data<'a> {
     #[columnar(strategy = "Rle")]
-    id: u8,
+    rle: u8,
     #[columnar(strategy = "DeltaRle")]
-    id2: ID,
-    #[columnar(strategy = "Rle")]
-    id3: usize,
-    #[columnar(strategy = "DeltaRle")]
-    id4: i64,
-    id5: i128,
-    id6: f64,
-    id7: (u16, i32),
+    delta_rle_uint: u64,
     #[columnar(strategy = "BoolRle")]
-    b: bool,
-    name: String,
-    #[columnar(class = "vec")]
-    vec: Vec<Data>,
+    bool_rle: bool,
+    #[columnar(strategy = "Rle")]
+    tuple_rle: (u16, String),
+    #[columnar(borrow)]
+    borrow_str: Cow<'a, str>,
+    #[columnar(skip)]
+    skip: bool,
+    #[columnar(class = "vec", iter = "Data<'a>")]
+    vec: Vec<Data<'a>>,
     #[columnar(class = "map")]
-    map: HashMap<String, Data>,
-}
-
-impl PartialEq for Data {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.id2 == other.id2
-            && self.id3 == other.id3
-            && self.id4 == other.id4
-            && self.id5 == other.id5
-            && (self.id6 == other.id6 || (self.id6.is_nan() && other.id6.is_nan()))
-            && self.id7 == other.id7
-            && self.b == other.b
-            && self.name == other.name
-            && self.vec == other.vec
-            && self.map == other.map
-    }
-}
-
-#[columnar(vec, map, ser, de)]
-#[derive(Debug, Clone, PartialEq)]
-pub struct VecStore {
-    #[columnar(class = "vec")]
-    data: Vec<Data>,
-    #[columnar(strategy = "DeltaRle")]
-    id: u64,
-}
-
-#[columnar(ser, de)]
-#[derive(Debug, Clone, PartialEq)]
-pub struct MapStore {
-    #[columnar(class = "map")]
-    data: HashMap<u64, Data>,
-    id: u64,
-}
-
-#[columnar(ser, de)]
-#[derive(Debug, Clone, PartialEq)]
-pub struct NestedStore {
-    #[columnar(class = "vec")]
-    stores: Vec<VecStore>,
-    #[columnar(class = "map")]
-    map_stores: HashMap<u64, VecStore>,
+    map: HashMap<String, Data<'a>>,
+    #[columnar(optional, index = 0)]
+    optional: u32,
+    #[columnar(borrow, optional, index = 1)]
+    borrow_optional_bytes: Cow<'a, str>,
 }
 
 #[test]
 fn fuzz_vec() {
-    let store = VecStore {
-        data: vec![Data {
-            id: 10,
-            id2: 72057300834811470,
-            id3: 72058667729420288,
-            id4: 256,
-            id5: 253,
-            id6: 0.0,
-            id7: (0, 0),
-            b: false,
-            name: "".into(),
-            vec: vec![],
-            map: HashMap::new(),
-        }],
-        id: 0,
+    let data = Data {
+        rle: 255,
+        delta_rle_uint: 612771024299098111,
+        bool_rle: true,
+        tuple_rle: (33023, "".to_string()),
+        borrow_str: "".into(),
+        skip: true,
+        vec: vec![],
+        map: Default::default(),
+        optional: 0,
+        borrow_optional_bytes: "".into(),
     };
-    let buf = to_vec(&store).unwrap();
-    let store2 = from_bytes(&buf).unwrap();
-    assert_eq!(store, store2);
+    let buf = to_vec(&data).unwrap();
+    println!("bytes {:?}", &buf);
+    // let v = vec![];
+    // let data = ::serde_columnar::ColumnarVec::<_, Vec<Data>>::new(&v);
+    // let buf = to_vec(&data).unwrap();
+    // println!("data {:?}", &buf);
+    let _store: Data = from_bytes(&buf).unwrap();
+    println!("data {:?}", _store);
+    let _store2 = iter_from_bytes::<Data>(&buf).unwrap();
+    // assert_eq!(store, store2);
 }

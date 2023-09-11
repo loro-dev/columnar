@@ -1,6 +1,6 @@
 [package]
 name = "serde_columnar"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 authors = ["leonzhao <leeeon233@gmail.com>", "zxch3n <remch183@outlook.com>"]
 license = "MIT OR Apache-2.0"
@@ -10,10 +10,10 @@ repository = "https://github.com/loro-dev/columnar"
 keywords = ["columnar", "column-oriented", "compression", "serde", "compatible"]
 
 [dev-dependencies]
-serde = { version = "1.0.147", features = ["derive"] }
+serde = { version = "1.0.188", features = ["derive"] }
 criterion = "0.5.1"
 serde_json = "1.0"
-insta = { version = "1.29.0", features = ["yaml"] }
+insta = { version = "1.31.0", features = ["yaml"] }
 
 [dependencies]
 serde = { version = "1.0" }
@@ -28,6 +28,7 @@ flate2 = { version = "1.0", optional = true }
 [[bench]]
 name = "columnar_bench"
 harness = false
+
 
 [features]
 bench = ["lazy_static", "bincode"]

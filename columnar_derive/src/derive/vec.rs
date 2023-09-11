@@ -81,12 +81,12 @@ fn process_vec_generics<'a>(
 }
 
 fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro2::TokenStream> {
-    // if field_arg.skip {
-    //     return Ok(quote::quote! {});
-    // }
+    if field_arg.skip {
+        return Ok(quote::quote! {});
+    }
     let field_name = &field_arg.ident;
     let field_type = &field_arg.ty;
-    let field_attr_ty = &field_arg.type_;
+    let field_attr_ty = &field_arg.class;
     let column_name = syn::Ident::new(
         &format!("column_{}", field_name.as_ref().unwrap()),
         proc_macro2::Span::call_site(),
@@ -117,32 +117,25 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     };
     let column_type_token = field_arg.get_strategy_column(this_ty)?;
     #[cfg(feature = "compress")]
-    let column_content_token = if field_arg.strategy.is_none() {
-        quote::quote!()
-    } else {
+    let column_content_token = 
         quote::quote!(let #column_name = 
             #column_type_token::new(
             #column_name,
             ::serde_columnar::ColumnAttr{
                 index: None,
-                // strategy: #strategy,
-                
-                compress: #compress_quote,
+                compress: #compress_quote
             }
-        );)
-    };
+        ););
     #[cfg(not(feature = "compress"))]
-    let column_content_token = if field_arg.strategy.is_none() {
-        quote::quote!()
-    } else {
+    let column_content_token = 
         quote::quote!(let #column_name = 
             #column_type_token::new(
             #column_name,
             ::serde_columnar::ColumnAttr{
                 index: None,
             }
-        );)
-    };
+        ););
+    
 
     let ret = quote::quote!(
         let #column_name = rows.into_iter().map(
@@ -155,17 +148,16 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
 }
 
 fn encode_per_column_to_ser(field_args: &Vec<FieldArgs>) -> syn::Result<proc_macro2::TokenStream> {
-    let field_len = field_args.len();
+    let mut field_len = field_args.len();
     let mut ser_elements = Vec::with_capacity(field_len);
     for args in field_args.iter() {
         let field_name = &args.ident;
         let optional = args.optional;
         let index = args.index;
-        // TODO: feat skip
-        // if args.skip {
-        //     field_len -= 1;
-        //     continue;
-        // }
+        if args.skip {
+            field_len -= 1;
+            continue;
+        }
         let column_index = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
             proc_macro2::Span::call_site(),
@@ -220,6 +212,7 @@ pub fn generate_derive_vec_row_de(
             use ::serde::de::Error as DeError;
             use ::serde::de::Visitor;
             use ::std::collections::HashMap;
+            use ::serde_columnar::ColumnTrait;
             #[automatically_derived]
             impl #impl_generics ::serde_columnar::RowDe<'__de, __IT> for #struct_name_ident #ty_generics #where_clause {
                 fn deserialize_columns<__D>(de: __D) -> Result<__IT, __D::Error>
@@ -267,14 +260,14 @@ fn generate_per_column_to_de_columns(
         let optional = args.optional;
         let index = args.index;
         let field_type = &args.ty;
-        let class = &args.type_;
+        let class = &args.class;
 
-        // if args.skip {
-        //     field_names_build.push(quote::quote!(
-        //         #field_name: ::std::default::Default::default()
-        //     ));
-        //     continue;
-        // }
+        if args.skip {
+            field_names_build.push(quote::quote!(
+                #field_name: ::std::default::Default::default()
+            ));
+            continue;
+        }
 
         let column_index = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
@@ -333,13 +326,9 @@ fn generate_per_column_to_de_columns(
         elements.push(q);
 
         columns_types.push(column_type);
-        let into_element = if args.strategy.is_none() {
-            quote::quote!(#column_index.into_iter())
-        } else {
-            quote::quote!(
-                #column_index.data.into_iter()
-            )
-        };
+        let into_element = quote::quote!(
+            #column_index.data.into_iter()
+        );
 
         into_iter_quote.push(into_element);
 

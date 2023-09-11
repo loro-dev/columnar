@@ -10,8 +10,8 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 serde = { version = "1.0", features = ["derive"] }
-arbitrary = { version = "1.1.7", features=["derive"]}
-
+arbitrary = { version = "1.1.7", features = ["derive"] }
+postcard = "1.0"
 
 
 [dependencies.serde_columnar]
@@ -45,5 +45,11 @@ doc = false
 [[bin]]
 name = "data"
 path = "fuzz_targets/data.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "iter_from_bytes"
+path = "fuzz_targets/iter_from_bytes.rs"
 test = false
 doc = false

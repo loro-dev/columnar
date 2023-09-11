@@ -3,27 +3,32 @@ pub mod delta_rle;
 pub mod rle;
 pub mod serde_impl;
 
-use std::fmt::Debug;
-
 #[cfg(feature = "compress")]
 use crate::compress::CompressConfig;
 use crate::{columnar_internal::ColumnarEncoder, ColumnarDecoder, ColumnarError};
 use crate::{BoolRleColumn, DeltaRleColumn, DeltaRleable, RleColumn, Rleable, Strategy};
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
+use std::ops::DerefMut;
 
-pub(crate) trait ColumnTrait {
+pub trait ColumnTrait {
     const STRATEGY: Strategy;
-    fn attr(&self) -> &ColumnAttr;
+    fn attr(&self) -> ColumnAttr;
     fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError>;
     fn decode(columnar_decoder: &mut ColumnarDecoder) -> Result<Self, ColumnarError>
     where
         Self: Sized;
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// The attributes of a column
 ///
 /// including compress config and some ones that may be used in the future.
 #[cfg(feature = "compress")]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnAttr {
     pub index: Option<usize>,
     pub compress: Option<CompressConfig>,
@@ -31,7 +36,7 @@ pub struct ColumnAttr {
 
 // TODO: remove index
 #[cfg(not(feature = "compress"))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnAttr {
     pub index: Option<usize>,
 }
@@ -124,7 +129,7 @@ impl<'b> ColumnDecoder<'b> {
             };
             let mut columnar_decoder = ColumnarDecoder::new(bytes);
             let column = T::decode(&mut columnar_decoder)?;
-            return Ok(column);
+            Ok(column)
         }
         #[cfg(not(feature = "compress"))]
         {
@@ -164,5 +169,59 @@ impl<T: Rleable> From<Vec<T>> for RleColumn<T> {
             data: value,
             attr: ColumnAttr::empty(),
         }
+    }
+}
+
+impl<T> From<Vec<T>> for GenericColumn<T>
+where
+    T: Serialize + for<'de> Deserialize<'de>,
+{
+    fn from(value: Vec<T>) -> Self {
+        Self {
+            data: value,
+            attr: ColumnAttr::empty(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct GenericColumn<T> {
+    pub data: Vec<T>,
+    pub attr: ColumnAttr,
+}
+impl<T> GenericColumn<T> {
+    pub fn new(data: Vec<T>, attr: ColumnAttr) -> Self {
+        Self { data, attr }
+    }
+}
+
+impl<T> ColumnTrait for GenericColumn<T>
+where
+    T: Serialize + for<'de> Deserialize<'de>,
+{
+    const STRATEGY: Strategy = Strategy::None;
+
+    fn attr(&self) -> ColumnAttr {
+        ColumnAttr::empty()
+    }
+
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError> {
+        self.data.serialize(columnar_encoder.deref_mut())?;
+        Ok(())
+    }
+
+    fn decode(columnar_decoder: &mut ColumnarDecoder) -> Result<Self, ColumnarError>
+    where
+        Self: Sized,
+    {
+        let data = Deserialize::deserialize(columnar_decoder.deref_mut())?;
+        Ok(Self {
+            data,
+            attr: ColumnAttr::empty(),
+        })
     }
 }

@@ -15,6 +15,7 @@ extern crate proc_macro2;
 use attr::Context;
 use darling::{export::NestedMeta, Error};
 use derive::process_derive_args;
+use iterable::TableIterParameter;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
@@ -25,13 +26,14 @@ mod args;
 mod ast;
 mod columnar;
 mod de;
+mod iterable;
 mod serde;
 use args::{get_derive_args, parse_field_args};
 #[cfg(feature = "analyze")]
 mod analyze;
 mod attr;
 mod derive;
-mod utils;
+pub(crate) mod utils;
 
 ///
 /// Convenience macro to use the [`columnar`] system.
@@ -115,6 +117,10 @@ fn expand_columnar(args: Vec<NestedMeta>, mut st: DeriveInput) -> syn::Result<To
     if derive_args.de {
         ans.push(DeParameter::from_ctx(&context)?.derive_de()?);
     }
+
+    // iterable
+    let iter_token = TableIterParameter::from_ctx(&context)?.generate_iterable()?;
+    ans.push(iter_token);
 
     // iterate all fields to check if there is any `columnar` attribute
     // and parse all fields' `columnar` attributes to [`FieldArgs`].

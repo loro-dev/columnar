@@ -6,6 +6,7 @@ use postcard::{
     Deserializer, Serializer,
 };
 
+#[derive(Debug)]
 pub struct Cursor<'de> {
     original: &'de [u8],
     pos: usize,
@@ -13,7 +14,7 @@ pub struct Cursor<'de> {
 }
 
 impl<'de> Cursor<'de> {
-    fn new(bytes: &'de [u8]) -> Self {
+    pub fn new(bytes: &'de [u8]) -> Self {
         Self {
             pos: 0,
             original: bytes,

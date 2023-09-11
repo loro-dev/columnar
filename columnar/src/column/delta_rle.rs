@@ -20,13 +20,6 @@ impl<T> DeltaRleColumn<T> {
     pub fn new(data: Vec<T>, attr: ColumnAttr) -> Self {
         Self { data, attr }
     }
-
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 impl<T> ColumnTrait for DeltaRleColumn<T>
@@ -34,9 +27,14 @@ where
     T: DeltaRleable,
 {
     const STRATEGY: Strategy = Strategy::DeltaRle;
-    fn attr(&self) -> &ColumnAttr {
-        &self.attr
+
+    fn attr(&self) -> ColumnAttr {
+        self.attr
     }
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
     fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError> {
         let mut delta_rle = DeltaRleEncoder::new(columnar_encoder);
         for &data in self.data.iter() {

@@ -7,7 +7,7 @@ use proc_macro2::{Spacing, TokenTree};
 #[allow(unused_imports)]
 use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
-use syn::{parse::ParseStream, spanned::Spanned, DeriveInput, Lifetime, LitStr, Token};
+use syn::{parse::ParseStream, spanned::Spanned, DeriveInput, Lifetime, LitStr, Token, Type};
 
 #[derive(Debug, Clone, Copy, FromMeta)]
 pub struct DeriveArgs {
@@ -19,6 +19,9 @@ pub struct DeriveArgs {
     pub(crate) ser: bool,
     #[darling(default)]
     pub(crate) de: bool,
+    // only row struct
+    #[darling(default)]
+    pub(crate) iterable: bool,
 }
 #[cfg(feature = "compress")]
 #[derive(FromMeta, Debug, Clone)]
@@ -36,7 +39,7 @@ pub struct CompressArgs {
 pub struct FieldArgs {
     pub ident: Option<syn::Ident>,
     pub vis: syn::Visibility,
-    pub ty: syn::Type,
+    pub ty: Type,
     pub attrs: Vec<syn::Attribute>,
     // custom attributes
     /// The index of the field in the struct, starts from 0 default.
@@ -47,25 +50,25 @@ pub struct FieldArgs {
     /// the strategy to convert the field values to a column.
     pub strategy: Option<String>,
     /// the type of the column format, vec or map.
-    #[darling(rename = "class")]
-    pub type_: Option<String>,
+    pub class: Option<String>,
     pub compress: Option<Override<CompressArgs>>,
     /// Same as the `borrow` of `serde`
     pub borrow: Option<Override<LitStr>>,
     /// Same as the `skip` of `serde`
     #[darling(default)]
     pub skip: bool,
+    pub iter: Option<Type>,
 }
 
 #[cfg(not(feature = "compress"))]
-#[derive(FromField, Debug)]
+#[derive(FromField, Debug, Clone)]
 #[darling(attributes(columnar))]
 pub struct FieldArgs {
     /// the name of field
     pub ident: Option<syn::Ident>,
     pub vis: syn::Visibility,
     /// the type of field
-    pub ty: syn::Type,
+    pub ty: Type,
     pub attrs: Vec<syn::Attribute>,
     // custom attributes
     /// The index of the field in the struct, starts from 0 default.
@@ -76,13 +79,13 @@ pub struct FieldArgs {
     /// the strategy to convert the field values to a column.
     pub strategy: Option<String>,
     /// the type of the column format, vec or map.
-    #[darling(rename = "class")]
-    pub type_: Option<String>,
+    pub class: Option<String>,
     /// Same as the `borrow` of `serde`
     pub borrow: Option<Override<LitStr>>,
     /// Same as the `skip` of serde
     #[darling(default)]
     pub skip: bool,
+    pub iter: Option<Type>,
 }
 
 #[cfg(feature = "compress")]
@@ -117,6 +120,29 @@ pub struct VariantArgs {
     pub skip: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Strategy {
+    Rle,
+    DeltaRle,
+    BoolRle,
+    None,
+}
+
+impl Strategy {
+    fn from_str(s: Option<String>) -> Self {
+        if let Some(s) = s {
+            match s.as_str() {
+                "Rle" => Self::Rle,
+                "DeltaRle" => Self::DeltaRle,
+                "BoolRle" => Self::BoolRle,
+                _ => unreachable!("strategy should be Rle, BoolRle or DeltaRle"),
+            }
+        } else {
+            Self::None
+        }
+    }
+}
+
 pub enum AsType {
     Vec,
     Map,
@@ -129,10 +155,11 @@ pub trait Args {
     fn attrs(&self) -> &[syn::Attribute];
     fn index(&self) -> Option<usize>;
     fn optional(&self) -> bool;
-    fn strategy(&self) -> &Option<String>;
-    fn type_(&self) -> Option<AsType>;
+    fn strategy(&self) -> Strategy;
+    fn class(&self) -> Option<AsType>;
     fn has_borrow_lifetime(&self) -> bool;
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>>;
+    fn self_lifetime(&self) -> syn::Result<BTreeSet<Lifetime>>;
     fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>>;
     #[cfg(feature = "compress")]
     fn compress(&self) -> &Option<Override<CompressArgs>>;
@@ -171,15 +198,29 @@ pub trait Args {
         }
     }
     fn get_strategy_column(&self, ty: TokenStream) -> syn::Result<proc_macro2::TokenStream> {
-        if let Some(strategy) = self.strategy() {
-            match strategy.as_str() {
-                "Rle" => Ok(quote::quote!(::serde_columnar::RleColumn::<#ty>)),
-                "BoolRle" => Ok(quote::quote!(::serde_columnar::BoolRleColumn)),
-                "DeltaRle" => Ok(quote::quote!(::serde_columnar::DeltaRleColumn::<#ty>)),
-                _ => unreachable!("strategy should be Rle, BoolRle or DeltaRle"),
+        match self.strategy() {
+            Strategy::Rle => Ok(quote::quote!(::serde_columnar::RleColumn::<#ty>)),
+            Strategy::BoolRle => Ok(quote::quote!(::serde_columnar::BoolRleColumn)),
+            Strategy::DeltaRle => Ok(quote::quote!(::serde_columnar::DeltaRleColumn::<#ty>)),
+            Strategy::None => {
+                if self.class().is_some() {
+                    let self_ty = &self.ty();
+
+                    let ans = match self.class().unwrap() {
+                        AsType::Map => {
+                            quote::quote!(::serde_columnar::GenericColumn::<::serde_columnar::ColumnarMap::<_, _, #self_ty>>)
+                        }
+                        AsType::Vec => {
+                            quote::quote!(::serde_columnar::GenericColumn::<::serde_columnar::ColumnarVec::<_, #self_ty>>)
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    Ok(ans)
+                } else {
+                    Ok(quote::quote!(::serde_columnar::GenericColumn::<#ty>))
+                }
             }
-        } else {
-            Ok(quote::quote!(::std::vec::Vec::<#ty>))
         }
     }
 }
@@ -200,12 +241,12 @@ impl Args for FieldArgs {
     fn optional(&self) -> bool {
         self.optional
     }
-    fn strategy(&self) -> &Option<String> {
-        &self.strategy
+    fn strategy(&self) -> Strategy {
+        Strategy::from_str(self.strategy.clone())
     }
 
-    fn type_(&self) -> Option<AsType> {
-        match self.type_.as_deref() {
+    fn class(&self) -> Option<AsType> {
+        match self.class.as_deref() {
             Some("vec") => Some(AsType::Vec),
             Some("map") => Some(AsType::Map),
             Some(_) => Some(AsType::Other),
@@ -217,10 +258,15 @@ impl Args for FieldArgs {
         if self.has_borrow_lifetime() {
             Ok(self.borrow_lifetimes()?.unwrap())
         } else {
-            let mut lifetimes = BTreeSet::new();
-            collect_lifetimes(&self.ty, &mut lifetimes);
-            Ok(lifetimes)
+            self.self_lifetime()
         }
+    }
+
+    fn self_lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
+        let mut lifetimes = BTreeSet::new();
+        collect_lifetimes(&self.ty, &mut lifetimes);
+
+        Ok(lifetimes)
     }
 
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
@@ -232,6 +278,7 @@ impl Args for FieldArgs {
             Override::Inherit => {
                 let mut lifetimes = BTreeSet::new();
                 collect_lifetimes(&self.ty, &mut lifetimes);
+
                 if lifetimes.is_empty() {
                     Err(syn::Error::new_spanned(
                         self.ty.clone().into_token_stream(),
@@ -266,7 +313,7 @@ impl Args for FieldArgs {
                         ));
                     }
 
-                    if let Ok(field_lifetimes) = self.lifetime() {
+                    if let Ok(field_lifetimes) = self.self_lifetime() {
                         for l in &lifetimes {
                             if !field_lifetimes.contains(l) {
                                 return Err(syn::Error::new(
@@ -318,10 +365,10 @@ impl Args for VariantArgs {
     fn optional(&self) -> bool {
         false
     }
-    fn strategy(&self) -> &Option<String> {
-        &None
+    fn strategy(&self) -> Strategy {
+        Strategy::None
     }
-    fn type_(&self) -> Option<AsType> {
+    fn class(&self) -> Option<AsType> {
         match self.type_.as_deref() {
             Some("vec") => Some(AsType::Vec),
             Some("map") => Some(AsType::Map),
@@ -332,6 +379,11 @@ impl Args for VariantArgs {
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
         unimplemented!("Variant have not implemented borrow")
     }
+
+    fn self_lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
+        unimplemented!("Variant have not implemented self_lifetime")
+    }
+
     fn has_borrow_lifetime(&self) -> bool {
         false
     }
@@ -415,7 +467,7 @@ pub fn check_args_validate(field_args: &[FieldArgs]) -> syn::Result<()> {
         };
 
         let strategy = &args.strategy;
-        let class = &args.type_;
+        let class = &args.class;
         if strategy.is_some() && class.is_some() {
             return Err(syn::Error::new_spanned(
                 field_name,

@@ -17,6 +17,7 @@ For more detailed introduction, please refer to this `Notion` link: [Serde-Colum
 - 🌳 Supports nested columnar storage.
 - 🗃️ Offers additional compression for each column.
 - 📦 Supports list and map containers
+- 🔄 Supports deserialization using iterator format.
 
 ## How to use
 
@@ -30,7 +31,7 @@ Or edit your `Cargo.toml` and add `serde_columnar` as dependency:
 
 ```toml
 [dependencies]
-serde_columnar = "0.3.1"
+serde_columnar = "0.3.2"
 ```
 
 ### Container Attribute
@@ -47,6 +48,10 @@ serde_columnar = "0.3.1"
   - Automatically derive `Serialize` trait for this struct
 - `de`:
   - Automatically derive `Deserialize` trait for this struct
+- `iterable`:
+  - Declare this struct will be iterable
+  - Only available for `row` struct
+  - [Iterable](https://github.com/loro-dev/columnar#Iterable) for more details
 
 ### Field Attribute
 
@@ -60,11 +65,15 @@ serde_columnar = "0.3.1"
   - Only available for `table` struct.
 - `skip`:
   - Same as [`#[serde(skip)]`](https://serde.rs/field-attrs.html#skip), do not serialize or deserialize this field.
-  - Only available for `table` struct for now.
 - `borrow`:
   - Same as [`#[serde(borrow)]`](https://serde.rs/field-attrs.html#borrow), borrow data for this field from the deserializer by using zero-copy deserialization.
   - use `#[columnar(borrow="'a + 'b")]` to specify explicitly which lifetimes should be borrowed.
   - Only available for `table` struct for now.
+- `iter`:
+  - Declare the iterable row type when deserializing using iter mode.
+  - Only available for field marked `class`.
+  - Only available for `class="vec"`.
+  - Unavailable with `compress`.
 - `optional` & `index`:
   - In order to achieve forward and backward compatibility, some fields that may change can be marked as `optional`.
   - And in order to avoid the possibility of errors in the future, such as change the order of optional fields, it is necessary to mark the `index`.
@@ -111,13 +120,46 @@ struct TableStruct<'a> {
 
 }
 
-let store = VecStore::new(...);
-let bytes = serde_columnar::to_vec(&store).unwrap();
-let store_from_bytes = serde_columnar::from_bytes::<VecStore>(&bytes).unwrap();
+let table = TableStruct::new(...);
+let bytes = serde_columnar::to_vec(&table).unwrap();
+let table_from_bytes = serde_columnar::from_bytes::<TableStruct>(&bytes).unwrap();
 
 ```
 
 You can find more examples of `serde_columnar` in `examples` and `tests`.
+
+### Iterable
+
+When we use columnar for compression encoding, there is a premise that the field is iterable. So we can completely borrow the encoded bytes to obtain all the data in the form of iterator during deserialization without directly allocating the memory of all the data. This implementation can also be achieved completely through macros.
+
+To use iter mode when deserializing, you only need to do 3 things:
+
+1. mark all row struct with `iterable`
+2. mark the field of row container with `iter="..."`
+3. use `serde_columnar::iter_from_bytes` to deserialize
+
+```rust
+#[columnar(vec, ser, de, iterable)]
+struct Row{
+  #[columnar(strategy="Rle")]
+  rle: String
+  #[columnar(strategy="DeltaRle")]
+  delta_rle: u64
+  other: u8
+}
+
+#[columnar(ser, de)]
+struct Table{
+  #[columnar(class="vec", iter="Row")]
+  vec: Vec<Row>,
+  other: u8
+}
+
+let table = Table::new(...);
+let bytes = serde_columnar::to_vec(&table).unwrap();
+let table_iter = serde_columnar::iter_from_bytes::<Table>(&bytes).unwrap();
+
+```
 
 ## Acknowledgements
 
