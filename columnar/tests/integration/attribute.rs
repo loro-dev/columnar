@@ -360,8 +360,7 @@ fn row_vec_de() {
     let init_b = B {
         data: vec![A { a: 1 }, A { a: 2 }],
     };
-
-    let bytes = vec![1, 1, 4, 0, 2, 1, 2];
+    let bytes = vec![1, 1, 3, 2, 1, 2];
     let b: B = from_bytes(&bytes).unwrap();
     assert_eq!(init_b, b);
 }
@@ -399,7 +398,7 @@ fn row_map_de() {
     }
     let data = vec![(1, A { a: 1 }), (2, A { a: 2 })].into_iter().collect();
     let init_b = B { data };
-    let bytes = vec![1, 2, 2, 1, 2, 4, 0, 2, 1, 2];
+    let bytes = vec![1, 2, 2, 1, 2, 3, 2, 1, 2];
     let b: B = from_bytes(&bytes).unwrap();
     assert_eq!(init_b, b);
 }

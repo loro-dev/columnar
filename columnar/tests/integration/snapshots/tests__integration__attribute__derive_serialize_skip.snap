@@ -1,0 +1,7 @@
+---
+source: columnar/tests/integration/attribute.rs
+expression: bytes
+---
+- 1
+- 1
+

@@ -156,8 +156,6 @@ fn generate_with_map_per_columns(
         let field_name = &args.ident;
         let field_type = &args.ty;
         let field_attr_ty = &args.class;
-        #[cfg(feature = "compress")]
-        let compress_quote = &args.compress_args()?;
         let column_name = syn::Ident::new(
             &format!("column_{}", field_name.as_ref().unwrap()),
             proc_macro2::Span::call_site(),
@@ -190,15 +188,6 @@ fn generate_with_map_per_columns(
         };
         // real columns
         let column_type_token = args.get_strategy_column(this_ty)?;
-        #[cfg(feature = "compress")]
-        let column_content_token = quote::quote!(let #column_name = #column_type_token::new(
-                #column_name,
-                ::serde_columnar::ColumnAttr{
-                    index: None,
-                    compress: #compress_quote
-                }
-            ););
-        #[cfg(not(feature = "compress"))]
         let column_content_token = quote::quote!(let #column_name = #column_type_token::new(
                 #column_name,
                 ::serde_columnar::ColumnAttr{

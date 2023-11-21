@@ -91,8 +91,6 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
         &format!("column_{}", field_name.as_ref().unwrap()),
         proc_macro2::Span::call_site(),
     );
-    #[cfg(feature = "compress")]
-    let compress_quote = field_arg.compress_args()?;
     let can_copy = field_arg.strategy == Some("DeltaRle".to_string())
         || field_arg.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(field_arg)?;
     let row_content = if can_copy {
@@ -116,17 +114,6 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
         quote::quote!(std::borrow::Cow<#field_type>)
     };
     let column_type_token = field_arg.get_strategy_column(this_ty)?;
-    #[cfg(feature = "compress")]
-    let column_content_token = 
-        quote::quote!(let #column_name = 
-            #column_type_token::new(
-            #column_name,
-            ::serde_columnar::ColumnAttr{
-                index: None,
-                compress: #compress_quote
-            }
-        ););
-    #[cfg(not(feature = "compress"))]
     let column_content_token = 
         quote::quote!(let #column_name = 
             #column_type_token::new(

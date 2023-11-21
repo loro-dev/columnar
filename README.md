@@ -15,7 +15,6 @@ For more detailed introduction, please refer to this `Notion` link: [Serde-Colum
 - 🗜️ Utilizes columnar storage in conjunction with various compression strategies to significantly reduce the size of the encoded content.
 - 🔄 Built-in forward and backward compatibility solutions, eliminating the need for maintaining additional version codes.
 - 🌳 Supports nested columnar storage.
-- 🗃️ Offers additional compression for each column.
 - 📦 Supports list and map containers
 - 🔄 Supports deserialization using iterator format.
 
@@ -73,21 +72,12 @@ serde_columnar = "0.3.2"
   - Declare the iterable row type when deserializing using iter mode.
   - Only available for field marked `class`.
   - Only available for `class="vec"`.
-  - Unavailable with `compress`.
 - `optional` & `index`:
   - In order to achieve forward and backward compatibility, some fields that may change can be marked as `optional`.
   - And in order to avoid the possibility of errors in the future, such as change the order of optional fields, it is necessary to mark the `index`.
   - All `optional` fields must be after other fields.
   - The `index` is the unique identifier of the optional field, which will be encoded into the result. If the corresponding identifier cannot be found during deserialization, `Default` will be used.
   - `optional` fields can be added or removed in future versions. The compatibility premise is that the field type of the same index does not change or the encoding format is compatible (such as changing `u32` to `u64`).
-- `compress`:
-  - **This attribute needs to enable the `compress` feature**
-  - This attribute is whether compress the columnar encoded bytes by default settings of Deflate algorithm.
-  - `#[columnar(compress(min_size=N))]`: compress the columnar encoded bytes when the size of the bytes is larger than N, **default N is 256**.
-  - `#[columnar(compress(level=N))]`: compress the columnar encoded bytes by Deflate algorithm with level N, N is in [0, 9], default N is 6, 0 is no compression, and 9 is the best compression. See [flate2](https://docs.rs/flate2/latest/flate2/struct.Compression.html#) for more details.
-  - `#[columnar(compress(method="fast"|"best"|"default"))]`: compress the columnar encoded bytes by Deflate algorithm with method "fast", "best" or "default", this attribute is equivalent to `#[columnar(compress(level=1|9|6))]`.
-  - **Note: `level` and `method` can not be used at the same time.**
-  - Only available for `row` struct.
 
 ### Examples
 

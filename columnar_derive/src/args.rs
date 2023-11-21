@@ -23,44 +23,7 @@ pub struct DeriveArgs {
     #[darling(default)]
     pub(crate) iterable: bool,
 }
-#[cfg(feature = "compress")]
-#[derive(FromMeta, Debug, Clone)]
-pub struct CompressArgs {
-    pub min_size: Option<usize>,
-    // 0~9
-    pub level: Option<u32>,
-    // "best"(9), "fast"(1), "default"(6)
-    pub method: Option<String>,
-}
 
-#[cfg(feature = "compress")]
-#[derive(FromField, Debug)]
-#[darling(attributes(columnar))]
-pub struct FieldArgs {
-    pub ident: Option<syn::Ident>,
-    pub vis: syn::Visibility,
-    pub ty: Type,
-    pub attrs: Vec<syn::Attribute>,
-    // custom attributes
-    /// The index of the field in the struct, starts from 0 default.
-    pub index: Option<usize>,
-    /// If optional, this field need to be compatible with the old or new version.
-    #[darling(default)]
-    pub optional: bool,
-    /// the strategy to convert the field values to a column.
-    pub strategy: Option<String>,
-    /// the type of the column format, vec or map.
-    pub class: Option<String>,
-    pub compress: Option<Override<CompressArgs>>,
-    /// Same as the `borrow` of `serde`
-    pub borrow: Option<Override<LitStr>>,
-    /// Same as the `skip` of `serde`
-    #[darling(default)]
-    pub skip: bool,
-    pub iter: Option<Type>,
-}
-
-#[cfg(not(feature = "compress"))]
 #[derive(FromField, Debug, Clone)]
 #[darling(attributes(columnar))]
 pub struct FieldArgs {
@@ -88,23 +51,7 @@ pub struct FieldArgs {
     pub iter: Option<Type>,
 }
 
-#[cfg(feature = "compress")]
-#[derive(FromVariant, Debug)]
-#[darling(attributes(columnar))]
-pub struct VariantArgs {
-    // pub ident: syn::Ident,
-    // pub vis: syn::Visibility,
-    // pub ty: syn::Type,
-    pub attrs: Vec<syn::Attribute>,
-    /// the type of the column format, vec or map.
-    #[darling(rename = "class")]
-    pub type_: Option<String>,
-    /// If skip, this field will be ignored.
-    #[darling(default)]
-    pub skip: bool,
-}
 
-#[cfg(not(feature = "compress"))]
 #[derive(FromVariant, Debug)]
 #[darling(attributes(columnar))]
 pub struct VariantArgs {
@@ -161,42 +108,6 @@ pub trait Args {
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>>;
     fn self_lifetime(&self) -> syn::Result<BTreeSet<Lifetime>>;
     fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>>;
-    #[cfg(feature = "compress")]
-    fn compress(&self) -> &Option<Override<CompressArgs>>;
-    #[cfg(feature = "compress")]
-    fn compress_args(&self) -> syn::Result<proc_macro2::TokenStream> {
-        if let Some(compress) = self.compress() {
-            match compress {
-                Override::Explicit(compress) => {
-                    if compress.level.is_some() && compress.method.is_some() {
-                        return Err(syn::Error::new(
-                            Span::call_site(),
-                            "columnar only support struct and enum",
-                        ));
-                    }
-                    const DEFAULT_COMPRESS_THRESHOLD: usize = 256;
-                    let threshold = compress.min_size.unwrap_or(DEFAULT_COMPRESS_THRESHOLD);
-                    if compress.level.is_some() {
-                        let level = compress.level.as_ref().unwrap();
-                        Ok(quote::quote! {
-                            Some(::serde_columnar::CompressConfig::from_level(#threshold, #level))
-                        })
-                    } else {
-                        let method = compress.method.as_ref().unwrap();
-                        // TODO: check method is best fast default
-                        Ok(quote::quote! {
-                            Some(::serde_columnar::CompressConfig::from_method(#threshold, #method.to_string()))
-                        })
-                    }
-                }
-                Override::Inherit => {
-                    Ok(quote::quote! { Some(::serde_columnar::CompressConfig::default()) })
-                }
-            }
-        } else {
-            Ok(quote::quote!(None))
-        }
-    }
     fn get_strategy_column(&self, ty: TokenStream) -> syn::Result<proc_macro2::TokenStream> {
         match self.strategy() {
             Strategy::Rle => Ok(quote::quote!(::serde_columnar::RleColumn::<#ty>)),
@@ -339,11 +250,6 @@ impl Args for FieldArgs {
         }
     }
 
-    #[cfg(feature = "compress")]
-    fn compress(&self) -> &Option<Override<CompressArgs>> {
-        &self.compress
-    }
-
     fn has_borrow_lifetime(&self) -> bool {
         self.borrow.is_some()
     }
@@ -386,10 +292,6 @@ impl Args for VariantArgs {
 
     fn has_borrow_lifetime(&self) -> bool {
         false
-    }
-    #[cfg(feature = "compress")]
-    fn compress(&self) -> &Option<Override<CompressArgs>> {
-        &None
     }
 
     fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
