@@ -41,12 +41,17 @@ impl<'de, T> Iterator for GenericIter<'de, T>
 where
     T: Default + Deserialize<'de>,
 {
-    type Item = T;
+    type Item = Result<T, ColumnarError>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.always_default {
-            return Some(T::default());
+            return Some(Ok(T::default()));
         }
-        T::deserialize(&mut self.de).ok()
+
+        match T::deserialize(&mut self.de) {
+            Ok(v) => Some(Ok(v)),
+            Err(postcard::Error::DeserializeUnexpectedEnd) => None,
+            Err(e) => Some(Err(ColumnarError::from(e))),
+        }
     }
 }
 
@@ -70,10 +75,11 @@ impl<'de, T: Rleable> AnyRleIter<'de, T> {
     pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
         while self.count == 0 {
             let count = isize::deserialize(&mut self.de);
-            if count.is_err() {
-                return Ok(None);
-            }
-            let count = count.unwrap();
+            let count = match count {
+                Err(postcard::Error::DeserializeUnexpectedEnd) => return Ok(None),
+                Err(e) => return Err(ColumnarError::from(e)),
+                Ok(c) => c,
+            };
             // Prevent bad data from causing oom loops
             if count.unsigned_abs() > MAX_RLE_COUNT {
                 return Err(ColumnarError::RleDecodeError(format!(
@@ -104,10 +110,10 @@ impl<'de, T: Rleable> AnyRleIter<'de, T> {
 }
 
 impl<'de, T: Rleable> Iterator for AnyRleIter<'de, T> {
-    type Item = T;
+    type Item = Result<T, ColumnarError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.try_next().unwrap()
+        self.try_next().transpose()
     }
 }
 
@@ -143,9 +149,9 @@ impl<'de, T: DeltaRleable> DeltaRleIter<'de, T> {
 }
 
 impl<'de, T: DeltaRleable> Iterator for DeltaRleIter<'de, T> {
-    type Item = T;
+    type Item = Result<T, ColumnarError>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.try_next().unwrap()
+        self.try_next().transpose()
     }
 }
 
@@ -167,10 +173,19 @@ impl<'de> BoolRleIter<'de> {
     pub(crate) fn try_next(&mut self) -> Result<Option<bool>, ColumnarError> {
         while self.count == 0 {
             let count = usize::deserialize(&mut self.de);
-            if count.is_err() && self.count == 0 {
-                return Ok(None);
-            }
-            self.count = count.unwrap();
+            self.count = match count {
+                Err(postcard::Error::DeserializeUnexpectedEnd) => {
+                    if self.count == 0 {
+                        return Ok(None);
+                    } else {
+                        return Err(ColumnarError::RleDecodeError(
+                            "Unexpected BoolRle data".to_string(),
+                        ));
+                    }
+                }
+                Err(e) => return Err(ColumnarError::from(e)),
+                Ok(c) => c,
+            };
             // Prevent bad data from causing oom loops
             if self.count > MAX_RLE_COUNT {
                 return Err(ColumnarError::RleDecodeError(format!(
@@ -186,10 +201,10 @@ impl<'de> BoolRleIter<'de> {
 }
 
 impl<'de> Iterator for BoolRleIter<'de> {
-    type Item = bool;
+    type Item = Result<bool, ColumnarError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.try_next().unwrap()
+        self.try_next().transpose()
     }
 }
 
@@ -230,14 +245,13 @@ macro_rules! flatten_tuple {
     };
 }
 
-
 impl<'de, T: Rleable> Deserialize<'de> for AnyRleIter<'de, T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;        
-        Ok(AnyRleIter::new(&bytes))
+        let bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
+        Ok(AnyRleIter::new(bytes))
     }
 }
 
