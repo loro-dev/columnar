@@ -146,7 +146,10 @@ impl TableIterFieldAttr {
     fn generate_row_per_iter_next_field(&self) -> TokenStream {
         let name = &self.name;
         let ans = quote::quote!(
-            let #name = self.#name.next();
+            let #name = match self.#name.next().transpose(){
+                Ok(v) => v,
+                Err(e) => return Some(Err(e)),
+            };
         );
         ans
     }
@@ -331,11 +334,11 @@ impl TableIterParameter {
             }
 
             impl #iter_impl_generics Iterator for #this_row_iter_struct_name #iter_ty_generics #where_clause{
-                type Item = #struct_name_ident #ty_generics;
+                type Item = ::std::result::Result<#struct_name_ident #ty_generics, ::serde_columnar::ColumnarError>;
                 fn next(&mut self) -> Option<Self::Item> {
                     #(#per_iter_next_field);*
                     if let (#(#next_some_tuple),*) = (#(#next_tuple),*){
-                        Some(#struct_name_ident{#(#next_tuple),*})
+                        Some(::std::result::Result::Ok(#struct_name_ident{#(#next_tuple),*}))
                     }else{
                         None
                     }

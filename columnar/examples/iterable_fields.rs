@@ -71,6 +71,7 @@ pub struct ComplexData<'a> {
     #[columnar(borrow)]
     borrow_str: Cow<'a, str>,
     #[columnar(skip)]
+    #[allow(dead_code)]
     skip: bool,
     #[columnar(class = "vec", iter = "Data<'a>")]
     vec: Vec<ComplexData<'a>>,
@@ -110,7 +111,7 @@ fn main() {
     let iter_store = iter_from_bytes::<VecStore>(&bytes).unwrap();
     // println!("data len {}", iter_store.data.count());
     for data in iter_store.data {
-        println!("# {:?}", data)
+        println!("# {:?}", data.unwrap())
     }
     assert_eq!(iter_store.id, 7)
 }

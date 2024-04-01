@@ -22,7 +22,6 @@ pub trait ColumnTrait {
     }
 }
 
-
 // TODO: remove index
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColumnAttr {
@@ -31,7 +30,7 @@ pub struct ColumnAttr {
 
 impl ColumnAttr {
     pub(crate) fn empty() -> Self {
-        return Self { index: None };
+        Self { index: None }
     }
 }
 

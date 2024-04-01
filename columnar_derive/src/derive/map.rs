@@ -46,7 +46,7 @@ pub fn generate_derive_hashmap_row_ser(
 
 pub fn generate_derive_hashmap_row_de(
     input: &DeriveInput,
-    field_args: &Vec<FieldArgs>,
+    field_args: &[FieldArgs],
 ) -> syn::Result<proc_macro2::TokenStream> {
     let struct_name_ident = &input.ident;
     let generics_params_to_modify = input.generics.clone();
@@ -142,7 +142,7 @@ fn process_map_generics<'a>(
 }
 
 fn generate_with_map_per_columns(
-    field_args: &Vec<FieldArgs>,
+    field_args: &[FieldArgs],
 ) -> syn::Result<proc_macro2::TokenStream> {
     let mut columns_quote = Vec::with_capacity(field_args.len());
     let mut columns_types = Vec::with_capacity(field_args.len());
@@ -252,7 +252,7 @@ fn encode_map_per_column_to_ser(
 }
 
 fn generate_map_per_column_to_de_columns(
-    field_args: &Vec<FieldArgs>,
+    field_args: &[FieldArgs],
     input: &DeriveInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let struct_name = &input.ident;
@@ -264,7 +264,7 @@ fn generate_map_per_column_to_de_columns(
     let mut field_names = Vec::with_capacity(field_len);
     let mut field_names_build = Vec::with_capacity(field_len);
     let mut into_iter_quote = Vec::with_capacity(field_len);
-    for (_, args) in field_args.iter().enumerate() {
+    for args in field_args.iter() {
         let field_name = &args.ident;
         let optional = args.optional;
         let index = args.index;

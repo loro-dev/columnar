@@ -134,7 +134,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
     Ok(ret)
 }
 
-fn encode_per_column_to_ser(field_args: &Vec<FieldArgs>) -> syn::Result<proc_macro2::TokenStream> {
+fn encode_per_column_to_ser(field_args: &[FieldArgs]) -> syn::Result<proc_macro2::TokenStream> {
     let mut field_len = field_args.len();
     let mut ser_elements = Vec::with_capacity(field_len);
     for args in field_args.iter() {
@@ -174,7 +174,7 @@ fn encode_per_column_to_ser(field_args: &Vec<FieldArgs>) -> syn::Result<proc_mac
 // Deserialize
 pub fn generate_derive_vec_row_de(
     input: &DeriveInput,
-    field_args: &Vec<FieldArgs>,
+    field_args: &[FieldArgs],
 ) -> syn::Result<proc_macro2::TokenStream> {
     let struct_name_ident = &input.ident;
     let generics_params_to_modify = input.generics.clone();
@@ -230,7 +230,7 @@ pub fn generate_derive_vec_row_de(
 }
 
 fn generate_per_column_to_de_columns(
-    field_args: &Vec<FieldArgs>,
+    field_args: &[FieldArgs],
     input: &DeriveInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let struct_name = &input.ident;
@@ -242,7 +242,7 @@ fn generate_per_column_to_de_columns(
     let mut into_iter_quote = Vec::with_capacity(field_len);
     let mut field_names = Vec::with_capacity(field_len);
     let mut field_names_build = Vec::with_capacity(field_len);
-    for (_, args) in field_args.iter().enumerate() {
+    for args in field_args.iter() {
         let field_name = &args.ident;
         let optional = args.optional;
         let index = args.index;
