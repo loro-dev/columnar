@@ -1,6 +1,6 @@
 use crate::{
     strategy::{DeltaRleDecoder, DeltaRleEncoder},
-    ColumnAttr, ColumnarDecoder, ColumnarEncoder, ColumnarError, Strategy,
+    ColumnAttr, ColumnarError, Strategy,
 };
 
 use super::{rle::Rleable, ColumnTrait};
@@ -35,8 +35,8 @@ where
         self.data.len()
     }
 
-    fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError> {
-        let mut delta_rle = DeltaRleEncoder::new(columnar_encoder);
+    fn encode(&self) -> Result<Vec<u8>, ColumnarError> {
+        let mut delta_rle = DeltaRleEncoder::new();
         for &data in self.data.iter() {
             delta_rle
                 .append(data.try_into().map_err(|_e| {
@@ -47,11 +47,11 @@ where
         delta_rle.finish()
     }
 
-    fn decode(columnar_decoder: &mut ColumnarDecoder) -> Result<Self, ColumnarError>
+    fn decode(bytes: &[u8]) -> Result<Self, ColumnarError>
     where
         Self: Sized,
     {
-        let mut delta_rle_decoder = DeltaRleDecoder::new(columnar_decoder);
+        let mut delta_rle_decoder = DeltaRleDecoder::new(bytes);
         let data = delta_rle_decoder.decode()?;
         Ok(Self {
             data,

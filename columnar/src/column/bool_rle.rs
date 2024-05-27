@@ -1,6 +1,6 @@
 use crate::{
     strategy::{BoolRleDecoder, BoolRleEncoder},
-    ColumnAttr, ColumnarDecoder, ColumnarEncoder, ColumnarError, Strategy,
+    ColumnAttr, ColumnarError, Strategy,
 };
 
 use super::ColumnTrait;
@@ -28,20 +28,19 @@ impl ColumnTrait for BoolRleColumn {
         self.data.len()
     }
 
-    fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError> {
-        let mut rle_encoder = BoolRleEncoder::new(columnar_encoder);
+    fn encode(&self) -> Result<Vec<u8>, ColumnarError> {
+        let mut rle_encoder = BoolRleEncoder::new();
         for data in self.data.iter() {
             rle_encoder.append(*data)?
         }
-        rle_encoder.finish()?;
-        Ok(())
+        rle_encoder.finish()
     }
 
-    fn decode(columnar_decoder: &mut ColumnarDecoder) -> Result<Self, ColumnarError>
+    fn decode(bytes: &[u8]) -> Result<Self, ColumnarError>
     where
         Self: Sized,
     {
-        let mut bool_rle_decoder = BoolRleDecoder::new(columnar_decoder);
+        let mut bool_rle_decoder = BoolRleDecoder::new(bytes);
         Ok(Self {
             data: bool_rle_decoder.decode()?,
             attr: ColumnAttr::empty(),

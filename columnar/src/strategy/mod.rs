@@ -1,7 +1,7 @@
-mod delta;
-pub use delta::{DeltaRleDecoder, DeltaRleEncoder};
 mod rle;
-pub use rle::{AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder};
+pub use rle::{
+    AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaRleDecoder, DeltaRleEncoder,
+};
 
 use crate::ColumnarError;
 

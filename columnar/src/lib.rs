@@ -67,21 +67,20 @@
 //! - `#[columnar(original_type="u32")]`: this attribute is used to tell the columnar encoding the original type of the field, which is used when the field is a number
 //! - `#[columnar(skip)]`: the same as the [skip](https://serde.rs/field-attrs.html#skip) attribute in serde
 //!
-    
 
 mod err;
-use std::ops::DerefMut;
 
+use columnar_internal::{ColumnarDecoder, ColumnarEncoder};
 pub use err::ColumnarError;
+use std::ops::DerefMut;
 mod column;
 pub use column::{
     bool_rle::BoolRleColumn,
     delta_rle::{DeltaRleColumn, DeltaRleable},
     rle::{RleColumn, Rleable},
-    ColumnAttr, ColumnDecoder, ColumnEncoder, ColumnTrait, GenericColumn,
+    ColumnAttr, ColumnTrait, GenericColumn,
 };
 mod columnar_internal;
-pub use columnar_internal::{ColumnarDecoder, ColumnarEncoder};
 pub mod iterable;
 mod row;
 pub use itertools::{izip, Itertools, MultiUnzip};

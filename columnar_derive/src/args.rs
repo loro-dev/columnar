@@ -51,7 +51,6 @@ pub struct FieldArgs {
     pub iter: Option<Type>,
 }
 
-
 #[derive(FromVariant, Debug)]
 #[darling(attributes(columnar))]
 pub struct VariantArgs {

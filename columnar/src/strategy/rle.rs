@@ -3,30 +3,27 @@
 use crate::{
     column::rle::Rleable,
     columnar_internal::{ColumnarDecoder, ColumnarEncoder},
-    ColumnarError,
+    ColumnarError, DeltaRleable,
 };
 use serde::{Deserialize, Serialize};
 
-use std::{borrow::Borrow, ops::DerefMut};
+use std::{borrow::Borrow, marker::PhantomData, ops::DerefMut};
 
 use super::MAX_RLE_COUNT;
 
-pub struct BoolRleEncoder<'a> {
-    ser: &'a mut ColumnarEncoder,
+#[derive(Default)]
+pub struct BoolRleEncoder {
+    ser: ColumnarEncoder,
     last: bool,
     count: usize,
 }
 
-impl<'a> BoolRleEncoder<'a> {
-    pub(crate) fn new(ser: &'a mut ColumnarEncoder) -> Self {
-        Self {
-            ser,
-            last: false,
-            count: 0,
-        }
+impl BoolRleEncoder {
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub(crate) fn append(&mut self, value: bool) -> Result<(), ColumnarError> {
+    pub fn append(&mut self, value: bool) -> Result<(), ColumnarError> {
         if value == self.last {
             self.count += 1;
         } else {
@@ -37,35 +34,32 @@ impl<'a> BoolRleEncoder<'a> {
         Ok(())
     }
 
-    pub(crate) fn finish(self) -> Result<(), ColumnarError> {
+    pub fn finish(mut self) -> Result<Vec<u8>, ColumnarError> {
         if self.count > 0 {
             self.count.serialize(self.ser.deref_mut()).unwrap();
         }
-        Ok(())
+        Ok(self.ser.into_bytes())
     }
 }
 
-pub struct AnyRleEncoder<'a, T> {
-    ser: &'a mut ColumnarEncoder,
+pub struct AnyRleEncoder<T> {
+    ser: ColumnarEncoder,
     state: RleState<T>,
 }
 
-impl<'a, T> AnyRleEncoder<'a, T>
+impl<T> AnyRleEncoder<T>
 where
     T: Rleable,
 {
-    pub fn new(ser: &'a mut ColumnarEncoder) -> Self {
-        Self {
-            ser,
-            state: RleState::Empty,
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub(crate) fn append<BT: Borrow<T>>(&mut self, value: BT) -> Result<(), ColumnarError> {
+    pub fn append<BT: Borrow<T>>(&mut self, value: BT) -> Result<(), ColumnarError> {
         self.append_value(value)
     }
 
-    pub(crate) fn finish(mut self) -> Result<(), ColumnarError> {
+    pub fn finish(mut self) -> Result<Vec<u8>, ColumnarError> {
         match self.take_state() {
             RleState::LoneVal(value) => self.flush_lit_run(vec![value]),
             RleState::Run(value, len) => self.flush_run(&value, len),
@@ -75,7 +69,7 @@ where
             }
             RleState::Empty => {}
         };
-        Ok(())
+        Ok(self.ser.into_bytes())
     }
 
     fn append_value<BT: Borrow<T>>(&mut self, value: BT) -> Result<(), ColumnarError> {
@@ -138,6 +132,16 @@ where
     }
 }
 
+impl<T> Default for AnyRleEncoder<T> {
+    fn default() -> Self {
+        Self {
+            ser: Default::default(),
+            state: RleState::Empty,
+        }
+    }
+}
+
+#[derive(Debug)]
 enum RleState<T> {
     Empty,
     LiteralRun(T, Vec<T>),
@@ -145,27 +149,27 @@ enum RleState<T> {
     Run(T, usize),
 }
 
-pub struct AnyRleDecoder<'a, 'de, T> {
-    de: &'a mut ColumnarDecoder<'de>,
+pub struct AnyRleDecoder<'de, T> {
+    de: ColumnarDecoder<'de>,
     last_value: Option<T>,
     count: isize,
     literal: bool,
 }
 
-impl<'a, 'de, T> AnyRleDecoder<'a, 'de, T>
+impl<'de, T> AnyRleDecoder<'de, T>
 where
     T: Rleable,
 {
-    pub(crate) fn new(de: &'a mut ColumnarDecoder<'de>) -> Self {
+    pub fn new(bytes: &'de [u8]) -> Self {
         Self {
-            de,
+            de: ColumnarDecoder::new(bytes),
             last_value: None,
             count: 0,
             literal: false,
         }
     }
 
-    pub(crate) fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
+    pub fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
             values.push(value);
@@ -173,7 +177,7 @@ where
         Ok(values)
     }
 
-    pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
+    pub fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
         while self.count == 0 {
             let count = isize::deserialize(self.de.deref_mut());
             if count.is_err() {
@@ -209,23 +213,22 @@ where
     }
 }
 
-pub struct BoolRleDecoder<'a, 'de> {
-    de: &'a mut ColumnarDecoder<'de>,
+pub struct BoolRleDecoder<'de> {
+    de: ColumnarDecoder<'de>,
     last_value: bool,
     count: usize,
 }
 
-impl<'a, 'de> BoolRleDecoder<'a, 'de> {
-    pub(crate) fn new(de: &'a mut ColumnarDecoder<'de>) -> Self {
+impl<'de> BoolRleDecoder<'de> {
+    pub fn new(bytes: &'de [u8]) -> Self {
         Self {
-            de,
+            de: ColumnarDecoder::new(bytes),
             last_value: true,
             count: 0,
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn decode(&mut self) -> Result<Vec<bool>, ColumnarError> {
+    pub fn decode(&mut self) -> Result<Vec<bool>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
             values.push(value);
@@ -233,7 +236,7 @@ impl<'a, 'de> BoolRleDecoder<'a, 'de> {
         Ok(values)
     }
 
-    fn try_next(&mut self) -> Result<Option<bool>, ColumnarError> {
+    pub fn try_next(&mut self) -> Result<Option<bool>, ColumnarError> {
         while self.count == 0 {
             let count = usize::deserialize(self.de.deref_mut());
             if count.is_err() && self.count == 0 {
@@ -254,44 +257,148 @@ impl<'a, 'de> BoolRleDecoder<'a, 'de> {
     }
 }
 
+#[derive(Default)]
+pub struct DeltaRleEncoder {
+    rle: AnyRleEncoder<i128>,
+    absolute_value: i128,
+}
+
+impl DeltaRleEncoder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn append<T: DeltaRleable>(&mut self, value: T) -> Result<(), ColumnarError> {
+        let v: i128 = value
+            .try_into()
+            .map_err(|_| ColumnarError::RleEncodeError("cannot into i128".to_string()))?;
+        let delta = v.saturating_sub(self.absolute_value);
+        self.absolute_value = v;
+        self.rle.append(delta)
+    }
+
+    pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
+        self.rle.finish()
+    }
+}
+
+pub struct DeltaRleDecoder<'de, T> {
+    rle: AnyRleDecoder<'de, i128>,
+    absolute_value: i128,
+    _t: PhantomData<T>,
+}
+
+impl<'de, T: DeltaRleable> DeltaRleDecoder<'de, T> {
+    pub fn new(bytes: &'de [u8]) -> Self {
+        Self {
+            rle: AnyRleDecoder::new(bytes),
+            absolute_value: 0,
+            _t: PhantomData,
+        }
+    }
+
+    pub fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
+        let mut values = Vec::new();
+        while let Some(value) = self.try_next()? {
+            values.push(value.try_into().map_err(|_| {
+                ColumnarError::RleDecodeError(format!(
+                    "{} cannot be safely converted from i128",
+                    value
+                ))
+            })?);
+        }
+        Ok(values)
+    }
+
+    fn try_next(&mut self) -> Result<Option<i128>, ColumnarError> {
+        let next = self.rle.try_next()?;
+        if let Some(delta) = next {
+            self.absolute_value = self.absolute_value.saturating_add(delta);
+            Ok(Some(self.absolute_value))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+impl<'de, T: Rleable> Iterator for AnyRleDecoder<'de, T> {
+    type Item = Result<T, ColumnarError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.try_next().transpose()
+    }
+}
+
+impl Iterator for BoolRleDecoder<'_> {
+    type Item = Result<bool, ColumnarError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.try_next().transpose()
+    }
+}
+
+impl<'de, T: DeltaRleable> Iterator for DeltaRleDecoder<'de, T> {
+    type Item = Result<T, ColumnarError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.try_next() {
+            Ok(Some(value)) => Some(T::try_from(value).map_err(|_| {
+                ColumnarError::RleDecodeError(format!(
+                    "{} cannot be safely converted from i128",
+                    value
+                ))
+            })),
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
+        }
+    }
+}
 mod test {
 
     #[test]
     fn test_rle() {
         use super::*;
-        let mut columnar = ColumnarEncoder::new();
-        let mut rle_encoder = AnyRleEncoder::<u64>::new(&mut columnar);
+        let mut rle_encoder = AnyRleEncoder::<u64>::new();
         rle_encoder.append(1000).unwrap();
         rle_encoder.append(1000).unwrap();
         rle_encoder.append(2).unwrap();
         rle_encoder.append(2).unwrap();
         rle_encoder.append(2).unwrap();
-        rle_encoder.finish().unwrap();
-        let buf = columnar.into_bytes();
+        let buf = rle_encoder.finish().unwrap();
         println!("buf {:?}", &buf);
-        let mut columnar_decoder = ColumnarDecoder::new(&buf);
-        let mut rle_decoder = AnyRleDecoder::<u64>::new(&mut columnar_decoder);
+        let mut rle_decoder = AnyRleDecoder::<u64>::new(&buf);
         assert_eq!(rle_decoder.decode().unwrap(), vec![1000, 1000, 2, 2, 2]);
     }
 
     #[test]
     fn test_bool_rle() {
         use super::*;
-        let mut columnar = ColumnarEncoder::new();
-        let mut rle_encoder = BoolRleEncoder::new(&mut columnar);
+        let mut rle_encoder = BoolRleEncoder::new();
         rle_encoder.append(true).unwrap();
         rle_encoder.append(true).unwrap();
         rle_encoder.append(false).unwrap();
         rle_encoder.append(false).unwrap();
         rle_encoder.append(false).unwrap();
-        rle_encoder.finish().unwrap();
-        let buf = columnar.into_bytes();
+        let buf = rle_encoder.finish().unwrap();
         assert_eq!(&buf, &[0, 2, 3]);
-        let mut columnar_decoder = ColumnarDecoder::new(buf.as_slice());
-        let mut rle_decoder = BoolRleDecoder::new(&mut columnar_decoder);
+        let mut rle_decoder = BoolRleDecoder::new(&buf);
         assert_eq!(
             rle_decoder.decode().unwrap(),
             vec![true, true, false, false, false]
         );
+    }
+
+    #[test]
+    fn test_delta_rle() {
+        use super::*;
+        let mut encoder = DeltaRleEncoder::new();
+        encoder.append(1).unwrap();
+        encoder.append(2).unwrap();
+        encoder.append(3).unwrap();
+        encoder.append(4).unwrap();
+        encoder.append(5).unwrap();
+        encoder.append(6).unwrap();
+        let buf = encoder.finish().unwrap();
+        println!("{:?}", buf);
+        let mut delta_rle_decoder = DeltaRleDecoder::new(&buf);
+        let values: Vec<u64> = delta_rle_decoder.decode().unwrap();
+        assert_eq!(values, vec![1, 2, 3, 4, 5, 6]);
     }
 }

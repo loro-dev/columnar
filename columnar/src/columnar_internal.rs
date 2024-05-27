@@ -1,10 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use postcard::{
-    de_flavors::Flavor as DeFlavor,
-    ser_flavors::{AllocVec, Flavor},
-    Deserializer, Serializer,
-};
+use postcard::{de_flavors::Flavor as DeFlavor, ser_flavors::Flavor, Deserializer, Serializer};
 
 #[derive(Debug)]
 pub struct Cursor<'de> {
@@ -58,7 +54,7 @@ impl<'de> DeFlavor<'de> for Cursor<'de> {
 }
 
 /// The decoder of columnar system
-pub struct ColumnarDecoder<'de> {
+pub(crate) struct ColumnarDecoder<'de> {
     de: Deserializer<'de, Cursor<'de>>,
 }
 
@@ -85,8 +81,41 @@ impl DerefMut for ColumnarDecoder<'_> {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct AllocVec {
+    vec: Vec<u8>,
+}
+
+impl AllocVec {
+    /// Create a new, currently empty, [alloc::vec::Vec] to be used for storing serialized
+    /// output data.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Flavor for AllocVec {
+    type Output = Vec<u8>;
+
+    #[inline(always)]
+    fn try_extend(&mut self, data: &[u8]) -> postcard::Result<()> {
+        self.vec.extend_from_slice(data);
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn try_push(&mut self, data: u8) -> postcard::Result<()> {
+        self.vec.push(data);
+        Ok(())
+    }
+
+    fn finalize(self) -> postcard::Result<Self::Output> {
+        Ok(self.vec)
+    }
+}
+
 /// The encoder of columnar system
-pub struct ColumnarEncoder {
+pub(crate) struct ColumnarEncoder {
     ser: Serializer<AllocVec>,
 }
 

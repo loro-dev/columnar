@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     strategy::{AnyRleDecoder, AnyRleEncoder},
-    ColumnAttr, ColumnarDecoder, ColumnarEncoder, ColumnarError, Strategy,
+    ColumnAttr, ColumnarError, Strategy,
 };
 
 use super::ColumnTrait;
@@ -37,20 +37,19 @@ where
         self.attr
     }
 
-    fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError> {
-        let mut rle_encoder = AnyRleEncoder::<T>::new(columnar_encoder);
+    fn encode(&self) -> Result<Vec<u8>, ColumnarError> {
+        let mut rle_encoder = AnyRleEncoder::<T>::new();
         for data in self.data.iter() {
             rle_encoder.append(data)?
         }
-        rle_encoder.finish()?;
-        Ok(())
+        rle_encoder.finish()
     }
 
-    fn decode(columnar_decoder: &mut ColumnarDecoder) -> Result<Self, ColumnarError>
+    fn decode(bytes: &[u8]) -> Result<Self, ColumnarError>
     where
         Self: Sized,
     {
-        let mut rle_decoder = AnyRleDecoder::new(columnar_decoder);
+        let mut rle_decoder = AnyRleDecoder::new(bytes);
         Ok(Self {
             data: rle_decoder.decode()?,
             attr: ColumnAttr::empty(),

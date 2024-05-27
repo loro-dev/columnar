@@ -3,8 +3,7 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    column::{ColumnDecoder, ColumnEncoder},
-    BoolRleColumn, DeltaRleColumn, DeltaRleable, GenericColumn, RleColumn, Rleable,
+    BoolRleColumn, ColumnTrait, DeltaRleColumn, DeltaRleable, GenericColumn, RleColumn, Rleable,
 };
 
 impl<T: Rleable> Serialize for RleColumn<T> {
@@ -12,8 +11,7 @@ impl<T: Rleable> Serialize for RleColumn<T> {
     where
         S: serde::Serializer,
     {
-        let columnar = ColumnEncoder::new();
-        let bytes = columnar.encode(self).map_err(|e| {
+        let bytes = self.encode().map_err(|e| {
             eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
@@ -26,8 +24,7 @@ impl<T: DeltaRleable> Serialize for DeltaRleColumn<T> {
     where
         S: serde::Serializer,
     {
-        let columnar = ColumnEncoder::new();
-        let bytes = columnar.encode(self).map_err(|e| {
+        let bytes = self.encode().map_err(|e| {
             eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
@@ -40,8 +37,7 @@ impl Serialize for BoolRleColumn {
     where
         S: serde::Serializer,
     {
-        let columnar = ColumnEncoder::new();
-        let bytes = columnar.encode(self).map_err(|e| {
+        let bytes = self.encode().map_err(|e| {
             eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
@@ -64,8 +60,7 @@ impl<'de> Deserialize<'de> for BoolRleColumn {
             where
                 E: serde::de::Error,
             {
-                let mut columnar = ColumnDecoder::new(v);
-                columnar.decode().map_err(|e| {
+                BoolRleColumn::decode(v).map_err(|e| {
                     eprintln!("Column Deserialize Error: {:?}", e);
                     serde::de::Error::custom(e.to_string())
                 })
@@ -90,8 +85,7 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleColumn<T> {
             where
                 E: serde::de::Error,
             {
-                let mut columnar = ColumnDecoder::new(v);
-                columnar.decode().map_err(|e| {
+                DeltaRleColumn::decode(v).map_err(|e| {
                     eprintln!("Column Deserialize Error: {:?}", e);
                     serde::de::Error::custom(e.to_string())
                 })
@@ -119,8 +113,7 @@ impl<'de, T: Rleable> Deserialize<'de> for RleColumn<T> {
             where
                 E: serde::de::Error,
             {
-                let mut columnar = ColumnDecoder::new(v);
-                columnar.decode().map_err(|e| {
+                RleColumn::decode(v).map_err(|e| {
                     eprintln!("Column Deserialize Error: {:?}", e);
                     serde::de::Error::custom(e.to_string())
                 })
@@ -138,8 +131,7 @@ where
     where
         S: serde::Serializer,
     {
-        let columnar = ColumnEncoder::new();
-        let bytes = columnar.encode(self).map_err(|e| {
+        let bytes = self.encode().map_err(|e| {
             eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
@@ -168,8 +160,7 @@ where
             where
                 E: serde::de::Error,
             {
-                let mut columnar = ColumnDecoder::new(v);
-                columnar.decode().map_err(|e| {
+                GenericColumn::decode(v).map_err(|e| {
                     eprintln!("Column Deserialize Error: {:?}", e);
                     serde::de::Error::custom(e.to_string())
                 })

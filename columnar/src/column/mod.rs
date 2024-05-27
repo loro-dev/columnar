@@ -12,8 +12,8 @@ use std::ops::DerefMut;
 pub trait ColumnTrait {
     const STRATEGY: Strategy;
     fn attr(&self) -> ColumnAttr;
-    fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError>;
-    fn decode(columnar_decoder: &mut ColumnarDecoder) -> Result<Self, ColumnarError>
+    fn encode(&self) -> Result<Vec<u8>, ColumnarError>;
+    fn decode(bytes: &[u8]) -> Result<Self, ColumnarError>
     where
         Self: Sized;
     fn len(&self) -> usize;
@@ -31,44 +31,6 @@ pub struct ColumnAttr {
 impl ColumnAttr {
     pub(crate) fn empty() -> Self {
         Self { index: None }
-    }
-}
-
-// TODO: remove this
-pub struct ColumnEncoder {
-    ser: ColumnarEncoder,
-}
-
-impl ColumnEncoder {
-    pub(crate) fn new() -> Self {
-        Self {
-            ser: ColumnarEncoder::new(),
-        }
-    }
-
-    pub(crate) fn encode<T: ColumnTrait>(mut self, column: &T) -> Result<Vec<u8>, ColumnarError> {
-        column.encode(&mut self.ser)?;
-        let buf = self.ser.into_bytes();
-        Ok(buf)
-    }
-}
-
-// TODO: remove this
-pub struct ColumnDecoder<'b> {
-    original_bytes: &'b [u8],
-}
-
-impl<'b> ColumnDecoder<'b> {
-    pub(crate) fn new(bytes: &'b [u8]) -> Self {
-        Self {
-            original_bytes: bytes,
-        }
-    }
-
-    pub(crate) fn decode<T: ColumnTrait>(&mut self) -> Result<T, ColumnarError> {
-        let mut columnar_decoder = ColumnarDecoder::new(self.original_bytes);
-        let column = T::decode(&mut columnar_decoder)?;
-        Ok(column)
     }
 }
 
@@ -136,15 +98,17 @@ where
         self.data.len()
     }
 
-    fn encode(&self, columnar_encoder: &mut ColumnarEncoder) -> Result<(), ColumnarError> {
-        self.data.serialize(columnar_encoder.deref_mut())?;
-        Ok(())
+    fn encode(&self) -> Result<Vec<u8>, ColumnarError> {
+        let mut encoder = ColumnarEncoder::new();
+        self.data.serialize(encoder.deref_mut())?;
+        Ok(encoder.into_bytes())
     }
 
-    fn decode(columnar_decoder: &mut ColumnarDecoder) -> Result<Self, ColumnarError>
+    fn decode(bytes: &[u8]) -> Result<Self, ColumnarError>
     where
         Self: Sized,
     {
+        let mut columnar_decoder = ColumnarDecoder::new(bytes);
         let data = Deserialize::deserialize(columnar_decoder.deref_mut())?;
         Ok(Self {
             data,
