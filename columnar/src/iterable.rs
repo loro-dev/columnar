@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 pub struct GenericIter<'de, T> {
     de: Deserializer<'de, Cursor<'de>>,
+    size_hint: usize,
     always_default: bool,
     _ty: PhantomData<T>,
 }
@@ -17,8 +18,11 @@ where
     T: Deserialize<'de>,
 {
     pub fn new(bytes: &'de [u8]) -> Self {
+        let mut de = Deserializer::from_flavor(Cursor::new(bytes));
+        let size: usize = Deserialize::deserialize(&mut de).unwrap_or(0);
         Self {
-            de: Deserializer::from_flavor(Cursor::new(bytes)),
+            de,
+            size_hint: size,
             always_default: false,
             _ty: Default::default(),
         }
@@ -29,6 +33,7 @@ impl<'de, T: Default> Default for GenericIter<'de, T> {
     fn default() -> Self {
         Self {
             de: Deserializer::from_flavor(Cursor::new(&[])),
+            size_hint: 0,
             always_default: true,
             _ty: Default::default(),
         }
@@ -50,6 +55,10 @@ where
             Err(postcard::Error::DeserializeUnexpectedEnd) => None,
             Err(e) => Some(Err(ColumnarError::from(e))),
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.size_hint, None)
     }
 }
 
