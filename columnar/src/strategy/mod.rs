@@ -28,4 +28,4 @@ impl TryFrom<u8> for Strategy {
     }
 }
 
-pub const MAX_RLE_COUNT: usize = 1e7 as usize;
+pub const MAX_RLE_COUNT: usize = 1e9 as usize;
