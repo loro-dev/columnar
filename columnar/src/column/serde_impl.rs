@@ -20,7 +20,7 @@ impl<T: Rleable> Serialize for RleColumn<T> {
     }
 }
 
-impl<T: DeltaRleable> Serialize for DeltaOfDeltaColumn<T> {
+impl Serialize for DeltaOfDeltaColumn {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -109,14 +109,14 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleColumn<T> {
     }
 }
 
-impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaOfDeltaColumn<T> {
+impl<'de> Deserialize<'de> for DeltaOfDeltaColumn {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        pub struct ColumnVisitor<T>(PhantomData<T>);
-        impl<'de, T: DeltaRleable> serde::de::Visitor<'de> for ColumnVisitor<T> {
-            type Value = DeltaOfDeltaColumn<T>;
+        pub struct ColumnVisitor;
+        impl<'de> serde::de::Visitor<'de> for ColumnVisitor {
+            type Value = DeltaOfDeltaColumn;
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                 formatter.write_str("a columnar encoded delta of delta column")
             }
@@ -130,7 +130,7 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaOfDeltaColumn<T> {
                 })
             }
         }
-        deserializer.deserialize_bytes(ColumnVisitor(Default::default()))
+        deserializer.deserialize_bytes(ColumnVisitor)
     }
 }
 

@@ -1,13 +1,13 @@
 /// Reference automerge implementation:
 /// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
 use crate::{
-    column::{delta_of_delta, rle::Rleable},
+    column::rle::Rleable,
     columnar_internal::{ColumnarDecoder, ColumnarEncoder},
     ColumnarError, DeltaRleable,
 };
 use serde::{Deserialize, Serialize};
 
-use std::{borrow::Borrow, marker::PhantomData, ops::DerefMut};
+use std::{borrow::Borrow, marker::PhantomData, ops::DerefMut, u8};
 
 use super::MAX_RLE_COUNT;
 
@@ -321,11 +321,23 @@ impl<'de, T: DeltaRleable> DeltaRleDecoder<'de, T> {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug)]
 pub struct DeltaOfDeltaEncoder {
-    rle: AnyRleEncoder<i128>,
-    prev_value: i128,
-    prev_delta: i128,
+    bits: Vec<u64>,
+    last_used_bit: u8,
+    prev_value: i64,
+    prev_delta: i64,
+}
+
+impl Default for DeltaOfDeltaEncoder {
+    fn default() -> Self {
+        Self {
+            bits: vec![0u64],
+            last_used_bit: 0,
+            prev_value: 0,
+            prev_delta: 0,
+        }
+    }
 }
 
 impl DeltaOfDeltaEncoder {
@@ -333,69 +345,159 @@ impl DeltaOfDeltaEncoder {
         Self::default()
     }
 
-    pub fn append<T: DeltaRleable>(&mut self, value: T) -> Result<(), ColumnarError> {
-        let v: i128 = value
-            .try_into()
-            .map_err(|_| ColumnarError::RleEncodeError("cannot into i128".to_string()))?;
-        let delta = v
-            .checked_sub(self.prev_value)
-            .ok_or(ColumnarError::RleEncodeError("delta overflow".to_string()))?;
-        let delta_of_delta =
-            delta
-                .checked_sub(self.prev_delta)
-                .ok_or(ColumnarError::RleEncodeError(
-                    "delta of delta overflow".to_string(),
-                ))?;
-        self.prev_value = v;
+    pub fn append(&mut self, value: i64) -> Result<(), ColumnarError> {
+        let delta = value - self.prev_value;
+        let delta_of_delta = delta - self.prev_delta;
+        self.prev_value = value;
         self.prev_delta = delta;
-        self.rle.append(delta_of_delta)
+        if delta_of_delta == 0 {
+            self.write_bits(0, 1);
+        } else if (-63..=64).contains(&delta_of_delta) {
+            self.write_bits(0b10, 2);
+            self.write_bits((delta_of_delta + 63) as u64, 7);
+        } else if (-255..=255).contains(&delta_of_delta) {
+            self.write_bits(0b110, 3);
+            self.write_bits((delta_of_delta + 255) as u64, 9);
+        } else if (-2047..=2048).contains(&delta_of_delta) {
+            self.write_bits(0b1110, 4);
+            self.write_bits((delta_of_delta + 2047) as u64, 12);
+        } else {
+            self.write_bits(0b1111, 4);
+            self.write_bits(delta_of_delta as u64, 32);
+        }
+        Ok(())
     }
 
-    pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
-        self.rle.finish()
-    }
-}
+    fn write_bits(&mut self, value: u64, count: u8) {
+        println!("write_bits: value: {:b}, count: {}", value, count);
 
-pub struct DeltaOfDeltaDecoder<'de, T> {
-    rle: AnyRleDecoder<'de, i128>,
-    prev_value: i128,
-    prev_delta: i128,
-    _t: PhantomData<T>,
-}
-
-impl<'de, T: DeltaRleable> DeltaOfDeltaDecoder<'de, T> {
-    pub fn new(bytes: &'de [u8]) -> Self {
-        Self {
-            rle: AnyRleDecoder::new(bytes),
-            prev_value: 0,
-            prev_delta: 0,
-            _t: PhantomData,
+        if self.last_used_bit == 64 {
+            self.bits.push(value << (64 - count));
+            self.last_used_bit = count;
+        } else {
+            let remaining_bits = 64 - self.last_used_bit;
+            if count > remaining_bits {
+                let bits_latter = count - remaining_bits;
+                let former = self.bits.last_mut().unwrap();
+                *former ^= value >> bits_latter;
+                self.bits.push(value << (64 - bits_latter));
+                self.last_used_bit = bits_latter;
+            } else {
+                let last = self.bits.last_mut().unwrap();
+                *last ^= value << (remaining_bits - count);
+                self.last_used_bit += count;
+            }
         }
     }
 
-    pub fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
+    pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
+        let mut bytes = Vec::with_capacity(self.bits.len() * 8 + 1);
+        let used = self.last_used_bit / 8 + 1;
+        bytes.push(self.last_used_bit % 8);
+        for bits in &self.bits[..self.bits.len() - 1] {
+            bytes.extend_from_slice(&bits.to_be_bytes());
+        }
+        bytes.extend_from_slice(&self.bits.last().unwrap().to_be_bytes()[..used as usize]);
+        Ok(bytes)
+    }
+}
+
+pub struct DeltaOfDeltaDecoder<'de> {
+    bits: &'de [u8],
+    prev_value: i64,
+    prev_delta: i64,
+    index: usize,
+    current_bits_index: u8,
+    last_used_bit: u8,
+}
+
+impl<'de> DeltaOfDeltaDecoder<'de> {
+    pub fn new(bytes: &'de [u8]) -> Self {
+        let last_used_bit = bytes[0];
+        let bits = &bytes[1..];
+        Self {
+            bits,
+            prev_value: 0,
+            prev_delta: 0,
+            index: 0,
+            current_bits_index: 0,
+            last_used_bit,
+        }
+    }
+
+    pub fn decode(&mut self) -> Result<Vec<i64>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
-            values.push(value.try_into().map_err(|_| {
-                ColumnarError::RleDecodeError(format!(
-                    "{} cannot be safely converted from i128",
-                    value
-                ))
-            })?);
+            values.push(value);
         }
         Ok(values)
     }
 
-    fn try_next(&mut self) -> Result<Option<i128>, ColumnarError> {
-        let next = self.rle.try_next()?;
-        if let Some(delta_of_delta) = next {
-            let delta = self.prev_delta.saturating_add(delta_of_delta);
-            let value = self.prev_value.saturating_add(delta);
-            self.prev_value = value;
-            self.prev_delta = delta;
-            Ok(Some(value))
+    fn try_next(&mut self) -> Result<Option<i64>, ColumnarError> {
+        match self.read_bits(1) {
+            Some(0) => self.prev_value += self.prev_delta,
+            Some(1) => {
+                let (num_bits, bias) = if self.read_bits(1).unwrap() == 0 {
+                    (7, 63)
+                } else if self.read_bits(1).unwrap() == 0 {
+                    (9, 255)
+                } else if self.read_bits(1).unwrap() == 0 {
+                    (12, 2047)
+                } else {
+                    (32, 0)
+                };
+                let delta_of_delta = self.read_bits(num_bits).unwrap() as i64 - bias;
+                self.prev_delta += delta_of_delta;
+                self.prev_value += self.prev_delta;
+            }
+            None => return Ok(None),
+            _ => panic!("delta of delta read flag should be 0 or 1"),
+        };
+        Ok(Some(self.prev_value))
+    }
+
+    fn read_bits(&mut self, count: u8) -> Option<u64> {
+        if self.index >= self.bits.len() {
+            return None;
+        }
+
+        let total_bits_remaining = (self.bits.len() - 1) * 8 + self.last_used_bit as usize;
+        let read_bits = self.index * 8 + self.current_bits_index as usize;
+        let remaining_bits = total_bits_remaining - read_bits;
+
+        if remaining_bits < count as usize {
+            return None;
+        }
+
+        let current_byte_remaining = 8 - self.current_bits_index;
+        if count <= current_byte_remaining {
+            let current_index = self.index;
+            self.current_bits_index += count;
+            if self.current_bits_index == 8 {
+                self.index += 1;
+                self.current_bits_index = 0;
+            }
+            let mask = u8::MAX >> (8 - count);
+            let ans = self.bits[current_index] >> (current_byte_remaining - count) & mask;
+            Some(ans as u64)
         } else {
-            Ok(None)
+            let mut ans = (self.bits[self.index] & u8::MAX >> (8 - current_byte_remaining)) as u64;
+            self.index += 1;
+            self.current_bits_index = 0;
+            // read current_byte_remaining
+
+            let mut rest = count - current_byte_remaining;
+            // while per 8 bits
+            while rest > 8 {
+                // read 8 bits
+                ans = (ans << 8) | self.bits[self.index] as u64;
+                self.index += 1;
+                rest -= 8;
+            }
+            // read rest bits
+            ans = (ans << rest) | (self.bits[self.index] >> (8 - rest)) as u64;
+            self.current_bits_index += rest;
+            Some(ans)
         }
     }
 }
@@ -430,19 +532,10 @@ impl<'de, T: DeltaRleable> Iterator for DeltaRleDecoder<'de, T> {
     }
 }
 
-impl<'de, T: DeltaRleable> Iterator for DeltaOfDeltaDecoder<'de, T> {
-    type Item = Result<T, ColumnarError>;
+impl<'de> Iterator for DeltaOfDeltaDecoder<'de> {
+    type Item = Result<i64, ColumnarError>;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.try_next() {
-            Ok(Some(value)) => Some(T::try_from(value).map_err(|_| {
-                ColumnarError::RleDecodeError(format!(
-                    "{} cannot be safely converted from i128",
-                    value
-                ))
-            })),
-            Ok(None) => None,
-            Err(e) => Some(Err(e)),
-        }
+        self.try_next().transpose()
     }
 }
 
@@ -511,7 +604,7 @@ mod test {
         let buf = encoder.finish().unwrap();
         println!("{:?}", buf);
         let mut delta_of_delta_rle_decoder = DeltaOfDeltaDecoder::new(&buf);
-        let values: Vec<u64> = delta_of_delta_rle_decoder.decode().unwrap();
+        let values: Vec<i64> = delta_of_delta_rle_decoder.decode().unwrap();
         assert_eq!(values, vec![1, 2, 3, 4, 5, 6]);
     }
 }

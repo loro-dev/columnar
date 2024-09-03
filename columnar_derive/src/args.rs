@@ -120,9 +120,7 @@ pub trait Args {
             Strategy::Rle => Ok(quote::quote!(::serde_columnar::RleColumn::<#ty>)),
             Strategy::BoolRle => Ok(quote::quote!(::serde_columnar::BoolRleColumn)),
             Strategy::DeltaRle => Ok(quote::quote!(::serde_columnar::DeltaRleColumn::<#ty>)),
-            Strategy::DeltaOfDelta => {
-                Ok(quote::quote!(::serde_columnar::DeltaOfDeltaColumn::<#ty>))
-            }
+            Strategy::DeltaOfDelta => Ok(quote::quote!(::serde_columnar::DeltaOfDeltaColumn)),
             Strategy::None => {
                 if self.class().is_some() {
                     let self_ty = &self.ty();

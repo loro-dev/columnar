@@ -46,8 +46,8 @@ impl From<Vec<bool>> for BoolRleColumn {
     }
 }
 
-impl<T: DeltaRleable> From<Vec<T>> for DeltaOfDeltaColumn<T> {
-    fn from(value: Vec<T>) -> Self {
+impl From<Vec<i64>> for DeltaOfDeltaColumn {
+    fn from(value: Vec<i64>) -> Self {
         Self {
             data: value,
             attr: ColumnAttr::empty(),

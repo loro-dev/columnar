@@ -599,7 +599,7 @@ fn delta_of_delta() {
     #[derive(Debug, Clone, PartialEq)]
     struct A {
         #[columnar(strategy = "DeltaOfDelta")]
-        a: u64,
+        a: i64,
     }
 
     #[columnar(ser, de)]

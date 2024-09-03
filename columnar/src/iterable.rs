@@ -124,6 +124,7 @@ impl<'de, T: Rleable> Iterator for AnyRleIter<'de, T> {
     }
 }
 
+// TODO: This is a temporary solution to support delta of delta encoding.
 pub struct DeltaOfDeltaIter<'de, T> {
     rle_iter: AnyRleIter<'de, i128>,
     prev_value: i128,
