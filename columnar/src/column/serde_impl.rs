@@ -3,10 +3,24 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BoolRleColumn, ColumnTrait, DeltaRleColumn, DeltaRleable, GenericColumn, RleColumn, Rleable,
+    BoolRleColumn, ColumnTrait, DeltaOfDeltaColumn, DeltaRleColumn, DeltaRleable, GenericColumn,
+    RleColumn, Rleable,
 };
 
 impl<T: Rleable> Serialize for RleColumn<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let bytes = self.encode().map_err(|e| {
+            eprintln!("Column Serialize Error: {:?}", e);
+            serde::ser::Error::custom(e.to_string())
+        })?;
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<T: DeltaRleable> Serialize for DeltaOfDeltaColumn<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -86,6 +100,31 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleColumn<T> {
                 E: serde::de::Error,
             {
                 DeltaRleColumn::decode(v).map_err(|e| {
+                    eprintln!("Column Deserialize Error: {:?}", e);
+                    serde::de::Error::custom(e.to_string())
+                })
+            }
+        }
+        deserializer.deserialize_bytes(ColumnVisitor(Default::default()))
+    }
+}
+
+impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaOfDeltaColumn<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        pub struct ColumnVisitor<T>(PhantomData<T>);
+        impl<'de, T: DeltaRleable> serde::de::Visitor<'de> for ColumnVisitor<T> {
+            type Value = DeltaOfDeltaColumn<T>;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a columnar encoded delta of delta column")
+            }
+            fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                DeltaOfDeltaColumn::decode(v).map_err(|e| {
                     eprintln!("Column Deserialize Error: {:?}", e);
                     serde::de::Error::custom(e.to_string())
                 })

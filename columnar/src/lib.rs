@@ -76,6 +76,7 @@ use std::ops::DerefMut;
 mod column;
 pub use column::{
     bool_rle::BoolRleColumn,
+    delta_of_delta::DeltaOfDeltaColumn,
     delta_rle::{DeltaRleColumn, DeltaRleable},
     rle::{RleColumn, Rleable},
     ColumnAttr, ColumnTrait, GenericColumn,
@@ -88,8 +89,8 @@ pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 use serde::{Deserialize, Serialize};
 mod strategy;
 pub use strategy::{
-    AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaRleDecoder, DeltaRleEncoder,
-    Strategy,
+    AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaOfDeltaDecoder,
+    DeltaOfDeltaEncoder, DeltaRleDecoder, DeltaRleEncoder, Strategy,
 };
 mod wrap;
 pub use wrap::{ColumnarMap, ColumnarVec};

@@ -10,11 +10,14 @@ fn row_iterable_strategy() {
         _delta_rle: u32,
         #[columnar(strategy = "BoolRle")]
         _bool_rle: bool,
+        #[columnar(strategy = "DeltaOfDelta")]
+        _delta_of_delta: u32,
     }
     let _ = IterableA {
         _rle: AnyRleIter::new(&[]),
         _delta_rle: DeltaRleIter::new(&[]),
         _bool_rle: BoolRleIter::new(&[]),
+        _delta_of_delta: DeltaOfDeltaIter::new(&[]),
     };
 }
 

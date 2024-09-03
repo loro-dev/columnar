@@ -124,6 +124,49 @@ impl<'de, T: Rleable> Iterator for AnyRleIter<'de, T> {
     }
 }
 
+pub struct DeltaOfDeltaIter<'de, T> {
+    rle_iter: AnyRleIter<'de, i128>,
+    prev_value: i128,
+    prev_delta: i128,
+    _type: PhantomData<T>,
+}
+
+impl<'de, T: DeltaRleable> DeltaOfDeltaIter<'de, T> {
+    pub fn new(bytes: &'de [u8]) -> Self {
+        Self {
+            rle_iter: AnyRleIter::new(bytes),
+            prev_value: 0,
+            prev_delta: 0,
+            _type: PhantomData,
+        }
+    }
+
+    pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
+        let next = self.rle_iter.try_next()?;
+        if let Some(delta_of_delta) = next {
+            let delta = self.prev_delta.saturating_add(delta_of_delta);
+            let value = self.prev_value.saturating_add(delta);
+            self.prev_value = value;
+            self.prev_delta = delta;
+            Ok(Some(value.try_into().map_err(|_| {
+                ColumnarError::RleDecodeError(format!(
+                    "{} cannot be safely converted from i128",
+                    value
+                ))
+            })?))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+impl<'de, T: DeltaRleable> Iterator for DeltaOfDeltaIter<'de, T> {
+    type Item = Result<T, ColumnarError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.try_next().transpose()
+    }
+}
+
 pub struct DeltaRleIter<'de, T> {
     rle_iter: AnyRleIter<'de, i128>,
     absolute_value: i128,
@@ -269,6 +312,15 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleIter<'de, T> {
     {
         let bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
         Ok(DeltaRleIter::new(bytes))
+    }
+}
+impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaOfDeltaIter<'de, T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
+        Ok(DeltaOfDeltaIter::new(bytes))
     }
 }
 

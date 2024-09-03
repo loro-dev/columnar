@@ -1,7 +1,7 @@
 /// Reference automerge implementation:
 /// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
 use crate::{
-    column::rle::Rleable,
+    column::{delta_of_delta, rle::Rleable},
     columnar_internal::{ColumnarDecoder, ColumnarEncoder},
     ColumnarError, DeltaRleable,
 };
@@ -321,6 +321,85 @@ impl<'de, T: DeltaRleable> DeltaRleDecoder<'de, T> {
     }
 }
 
+#[derive(Default)]
+pub struct DeltaOfDeltaEncoder {
+    rle: AnyRleEncoder<i128>,
+    prev_value: i128,
+    prev_delta: i128,
+}
+
+impl DeltaOfDeltaEncoder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn append<T: DeltaRleable>(&mut self, value: T) -> Result<(), ColumnarError> {
+        let v: i128 = value
+            .try_into()
+            .map_err(|_| ColumnarError::RleEncodeError("cannot into i128".to_string()))?;
+        let delta = v
+            .checked_sub(self.prev_value)
+            .ok_or(ColumnarError::RleEncodeError("delta overflow".to_string()))?;
+        let delta_of_delta =
+            delta
+                .checked_sub(self.prev_delta)
+                .ok_or(ColumnarError::RleEncodeError(
+                    "delta of delta overflow".to_string(),
+                ))?;
+        self.prev_value = v;
+        self.prev_delta = delta;
+        self.rle.append(delta_of_delta)
+    }
+
+    pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
+        self.rle.finish()
+    }
+}
+
+pub struct DeltaOfDeltaDecoder<'de, T> {
+    rle: AnyRleDecoder<'de, i128>,
+    prev_value: i128,
+    prev_delta: i128,
+    _t: PhantomData<T>,
+}
+
+impl<'de, T: DeltaRleable> DeltaOfDeltaDecoder<'de, T> {
+    pub fn new(bytes: &'de [u8]) -> Self {
+        Self {
+            rle: AnyRleDecoder::new(bytes),
+            prev_value: 0,
+            prev_delta: 0,
+            _t: PhantomData,
+        }
+    }
+
+    pub fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
+        let mut values = Vec::new();
+        while let Some(value) = self.try_next()? {
+            values.push(value.try_into().map_err(|_| {
+                ColumnarError::RleDecodeError(format!(
+                    "{} cannot be safely converted from i128",
+                    value
+                ))
+            })?);
+        }
+        Ok(values)
+    }
+
+    fn try_next(&mut self) -> Result<Option<i128>, ColumnarError> {
+        let next = self.rle.try_next()?;
+        if let Some(delta_of_delta) = next {
+            let delta = self.prev_delta.saturating_add(delta_of_delta);
+            let value = self.prev_value.saturating_add(delta);
+            self.prev_value = value;
+            self.prev_delta = delta;
+            Ok(Some(value))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 impl<'de, T: Rleable> Iterator for AnyRleDecoder<'de, T> {
     type Item = Result<T, ColumnarError>;
     fn next(&mut self) -> Option<Self::Item> {
@@ -350,6 +429,23 @@ impl<'de, T: DeltaRleable> Iterator for DeltaRleDecoder<'de, T> {
         }
     }
 }
+
+impl<'de, T: DeltaRleable> Iterator for DeltaOfDeltaDecoder<'de, T> {
+    type Item = Result<T, ColumnarError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.try_next() {
+            Ok(Some(value)) => Some(T::try_from(value).map_err(|_| {
+                ColumnarError::RleDecodeError(format!(
+                    "{} cannot be safely converted from i128",
+                    value
+                ))
+            })),
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
+        }
+    }
+}
+
 mod test {
 
     #[test]
@@ -399,6 +495,23 @@ mod test {
         println!("{:?}", buf);
         let mut delta_rle_decoder = DeltaRleDecoder::new(&buf);
         let values: Vec<u64> = delta_rle_decoder.decode().unwrap();
+        assert_eq!(values, vec![1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn test_delta_of_delta_rle() {
+        use super::*;
+        let mut encoder = DeltaOfDeltaEncoder::new();
+        encoder.append(1).unwrap();
+        encoder.append(2).unwrap();
+        encoder.append(3).unwrap();
+        encoder.append(4).unwrap();
+        encoder.append(5).unwrap();
+        encoder.append(6).unwrap();
+        let buf = encoder.finish().unwrap();
+        println!("{:?}", buf);
+        let mut delta_of_delta_rle_decoder = DeltaOfDeltaDecoder::new(&buf);
+        let values: Vec<u64> = delta_of_delta_rle_decoder.decode().unwrap();
         assert_eq!(values, vec![1, 2, 3, 4, 5, 6]);
     }
 }
