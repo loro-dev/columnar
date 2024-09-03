@@ -1,7 +1,7 @@
 /// Reference automerge implementation:
 /// https://github.com/automerge/automerge-rs/blob/d7d2916acb17d23d02ae249763aa0cf2f293d880/rust/automerge/src/columnar/encoding/rle.rs
 use crate::{
-    column::rle::Rleable,
+    column::{delta_of_delta::DeltaOfDeltable, rle::Rleable},
     columnar_internal::{ColumnarDecoder, ColumnarEncoder},
     ColumnarError, DeltaRleable,
 };
@@ -369,8 +369,6 @@ impl DeltaOfDeltaEncoder {
     }
 
     fn write_bits(&mut self, value: u64, count: u8) {
-        println!("write_bits: value: {:b}, count: {}", value, count);
-
         if self.last_used_bit == 64 {
             self.bits.push(value << (64 - count));
             self.last_used_bit = count;
@@ -402,16 +400,17 @@ impl DeltaOfDeltaEncoder {
     }
 }
 
-pub struct DeltaOfDeltaDecoder<'de> {
+pub struct DeltaOfDeltaDecoder<'de, T> {
     bits: &'de [u8],
     prev_value: i64,
     prev_delta: i64,
     index: usize,
     current_bits_index: u8,
     last_used_bit: u8,
+    _t: PhantomData<T>,
 }
 
-impl<'de> DeltaOfDeltaDecoder<'de> {
+impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
     pub fn new(bytes: &'de [u8]) -> Self {
         let last_used_bit = bytes[0];
         let bits = &bytes[1..];
@@ -422,10 +421,11 @@ impl<'de> DeltaOfDeltaDecoder<'de> {
             index: 0,
             current_bits_index: 0,
             last_used_bit,
+            _t: PhantomData,
         }
     }
 
-    pub fn decode(&mut self) -> Result<Vec<i64>, ColumnarError> {
+    pub fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
         let mut values = Vec::new();
         while let Some(value) = self.try_next()? {
             values.push(value);
@@ -433,7 +433,7 @@ impl<'de> DeltaOfDeltaDecoder<'de> {
         Ok(values)
     }
 
-    fn try_next(&mut self) -> Result<Option<i64>, ColumnarError> {
+    fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
         match self.read_bits(1) {
             Some(0) => self.prev_value += self.prev_delta,
             Some(1) => {
@@ -453,7 +453,12 @@ impl<'de> DeltaOfDeltaDecoder<'de> {
             None => return Ok(None),
             _ => panic!("delta of delta read flag should be 0 or 1"),
         };
-        Ok(Some(self.prev_value))
+        Ok(Some(self.prev_value.try_into().map_err(|_| {
+            ColumnarError::RleDecodeError(format!(
+                "{} cannot be safely converted from i128",
+                self.prev_value
+            ))
+        })?))
     }
 
     fn read_bits(&mut self, count: u8) -> Option<u64> {
@@ -532,8 +537,8 @@ impl<'de, T: DeltaRleable> Iterator for DeltaRleDecoder<'de, T> {
     }
 }
 
-impl<'de> Iterator for DeltaOfDeltaDecoder<'de> {
-    type Item = Result<i64, ColumnarError>;
+impl<'de, T: DeltaOfDeltable> Iterator for DeltaOfDeltaDecoder<'de, T> {
+    type Item = Result<T, ColumnarError>;
     fn next(&mut self) -> Option<Self::Item> {
         self.try_next().transpose()
     }

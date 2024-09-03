@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BoolRleColumn, ColumnTrait, DeltaOfDeltaColumn, DeltaRleColumn, DeltaRleable, GenericColumn,
-    RleColumn, Rleable,
+    column::delta_of_delta::DeltaOfDeltable, BoolRleColumn, ColumnTrait, DeltaOfDeltaColumn,
+    DeltaRleColumn, DeltaRleable, GenericColumn, RleColumn, Rleable,
 };
 
 impl<T: Rleable> Serialize for RleColumn<T> {
@@ -20,7 +20,7 @@ impl<T: Rleable> Serialize for RleColumn<T> {
     }
 }
 
-impl Serialize for DeltaOfDeltaColumn {
+impl<T: DeltaOfDeltable> Serialize for DeltaOfDeltaColumn<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -109,14 +109,14 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleColumn<T> {
     }
 }
 
-impl<'de> Deserialize<'de> for DeltaOfDeltaColumn {
+impl<'de, T: DeltaOfDeltable> Deserialize<'de> for DeltaOfDeltaColumn<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        pub struct ColumnVisitor;
-        impl<'de> serde::de::Visitor<'de> for ColumnVisitor {
-            type Value = DeltaOfDeltaColumn;
+        pub struct ColumnVisitor<T>(PhantomData<T>);
+        impl<'de, T: DeltaOfDeltable> serde::de::Visitor<'de> for ColumnVisitor<T> {
+            type Value = DeltaOfDeltaColumn<T>;
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                 formatter.write_str("a columnar encoded delta of delta column")
             }
@@ -130,7 +130,7 @@ impl<'de> Deserialize<'de> for DeltaOfDeltaColumn {
                 })
             }
         }
-        deserializer.deserialize_bytes(ColumnVisitor)
+        deserializer.deserialize_bytes(ColumnVisitor(Default::default()))
     }
 }
 
