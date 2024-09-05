@@ -7,7 +7,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use std::{borrow::Borrow, marker::PhantomData, ops::DerefMut, u8};
+use std::{borrow::Borrow, marker::PhantomData, ops::DerefMut};
 
 use super::MAX_RLE_COUNT;
 
@@ -390,7 +390,7 @@ impl DeltaOfDeltaEncoder {
 
     pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
         let mut bytes = Vec::with_capacity(self.bits.len() * 8 + 1);
-        let used = self.last_used_bit / 8 + 1;
+        let used = self.last_used_bit.div_ceil(8);
         bytes.push(self.last_used_bit % 8);
         for bits in &self.bits[..self.bits.len() - 1] {
             bytes.extend_from_slice(&bits.to_be_bytes());
