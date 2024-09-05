@@ -522,9 +522,9 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
             return None;
         }
 
-        let total_bits_remaining = (self.bits.len() - 1) * 8 + self.last_used_bit as usize;
+        let total_bits = (self.bits.len() - 1) * 8 + self.last_used_bit as usize;
         let read_bits = self.index * 8 + self.current_bits_index as usize;
-        let remaining_bits = total_bits_remaining - read_bits;
+        let remaining_bits = total_bits - read_bits;
 
         if remaining_bits < count as usize {
             return None;
