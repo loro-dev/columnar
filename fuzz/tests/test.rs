@@ -123,6 +123,7 @@ fn test_dod_4() {
         ],
     };
     let buf = to_vec(&store).unwrap();
+    println!("buf {:?}", &buf);
     let store2 = from_bytes(&buf).unwrap();
     assert_eq!(store, store2);
 }

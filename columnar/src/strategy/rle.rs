@@ -417,7 +417,7 @@ impl DeltaOfDeltaEncoder {
     pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
         let mut bytes = Vec::with_capacity(self.bits.len() * 8 + 1 + 8);
         if let Some(head_num) = self.head_num {
-            bytes.extend_from_slice(&head_num.to_le_bytes());
+            bytes.extend_from_slice(&postcard::to_allocvec(&head_num)?);
         }
         let used = self.last_used_bit.div_ceil(8);
         bytes.push(if self.last_used_bit % 8 == 0 && self.use_bit {
@@ -448,7 +448,7 @@ pub struct DeltaOfDeltaDecoder<'de, T> {
 impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
     pub fn new(bytes: &'de [u8]) -> Self {
         // println!("\ndecode bytes {:?}", &bytes);
-        if bytes.len() < 8 + 1 {
+        if bytes.len() < 2 {
             return Self {
                 bits: bytes,
                 head_num: None,
@@ -460,9 +460,9 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
                 _t: PhantomData,
             };
         }
-        let head_num = i64::from_le_bytes(bytes[..8].try_into().unwrap());
-        let last_used_bit = bytes[8];
-        let bits = &bytes[9..];
+        let (head_num, bytes) = postcard::take_from_bytes(bytes).unwrap();
+        let last_used_bit = bytes[0];
+        let bits = &bytes[1..];
         Self {
             bits,
             head_num: Some(head_num),
