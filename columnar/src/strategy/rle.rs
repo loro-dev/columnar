@@ -483,7 +483,7 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
         Ok(values)
     }
 
-    fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
+    pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
         if self.head_num.is_some() {
             self.prev_value = self.head_num.unwrap();
             self.head_num = None;

@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use crate::{
-    columnar_internal::Cursor, strategy::MAX_RLE_COUNT, ColumnarError, DeltaRleable, Rleable,
+    column::delta_of_delta::DeltaOfDeltable, columnar_internal::Cursor, strategy::MAX_RLE_COUNT,
+    ColumnarError, DeltaOfDeltaDecoder, DeltaRleable, Rleable,
 };
 use postcard::Deserializer;
 use serde::Deserialize;
@@ -124,44 +125,23 @@ impl<'de, T: Rleable> Iterator for AnyRleIter<'de, T> {
     }
 }
 
-// TODO: This is a temporary solution to support delta of delta encoding.
 pub struct DeltaOfDeltaIter<'de, T> {
-    rle_iter: AnyRleIter<'de, i128>,
-    prev_value: i128,
-    prev_delta: i128,
-    _type: PhantomData<T>,
+    decoder: DeltaOfDeltaDecoder<'de, T>,
 }
 
-impl<'de, T: DeltaRleable> DeltaOfDeltaIter<'de, T> {
+impl<'de, T: DeltaOfDeltable> DeltaOfDeltaIter<'de, T> {
     pub fn new(bytes: &'de [u8]) -> Self {
         Self {
-            rle_iter: AnyRleIter::new(bytes),
-            prev_value: 0,
-            prev_delta: 0,
-            _type: PhantomData,
+            decoder: DeltaOfDeltaDecoder::new(bytes),
         }
     }
 
     pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
-        let next = self.rle_iter.try_next()?;
-        if let Some(delta_of_delta) = next {
-            let delta = self.prev_delta.saturating_add(delta_of_delta);
-            let value = self.prev_value.saturating_add(delta);
-            self.prev_value = value;
-            self.prev_delta = delta;
-            Ok(Some(value.try_into().map_err(|_| {
-                ColumnarError::RleDecodeError(format!(
-                    "{} cannot be safely converted from i128",
-                    value
-                ))
-            })?))
-        } else {
-            Ok(None)
-        }
+        self.decoder.try_next()
     }
 }
 
-impl<'de, T: DeltaRleable> Iterator for DeltaOfDeltaIter<'de, T> {
+impl<'de, T: DeltaOfDeltable> Iterator for DeltaOfDeltaIter<'de, T> {
     type Item = Result<T, ColumnarError>;
     fn next(&mut self) -> Option<Self::Item> {
         self.try_next().transpose()
@@ -315,7 +295,7 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleIter<'de, T> {
         Ok(DeltaRleIter::new(bytes))
     }
 }
-impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaOfDeltaIter<'de, T> {
+impl<'de, T: DeltaOfDeltable> Deserialize<'de> for DeltaOfDeltaIter<'de, T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
