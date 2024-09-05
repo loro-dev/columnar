@@ -382,14 +382,12 @@ impl DeltaOfDeltaEncoder {
         } else if (-2047..=2048).contains(&delta_of_delta) {
             self.write_bits(0b1110, 4);
             self.write_bits((delta_of_delta + 2047) as u64, 12);
+        } else if ((-(1 << 20) + 1)..=(1 << 20)).contains(&delta_of_delta) {
+            self.write_bits(0b11110, 5);
+            self.write_bits((delta_of_delta + (1 << 20) - 1) as u64, 21);
         } else {
-            if delta_of_delta < i32::MIN as i64 || delta_of_delta > i32::MAX as i64 {
-                return Err(ColumnarError::RleEncodeError(
-                    "Delta of delta value is too large to be encoded in 32 bits".to_string(),
-                ));
-            }
-            self.write_bits(0b1111, 4);
-            self.write_bits(delta_of_delta as u32 as u64, 32);
+            self.write_bits(0b11111, 5);
+            self.write_bits(delta_of_delta as u64, 64);
         }
         Ok(())
     }
@@ -497,8 +495,10 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
                         (9, 255)
                     } else if self.read_bits(1).unwrap() == 0 {
                         (12, 2047)
+                    } else if self.read_bits(1).unwrap() == 0 {
+                        (21, (1 << 20) - 1)
                     } else {
-                        (32, 0)
+                        (64, 0)
                     };
                     let delta_of_delta = self.read_bits(num_bits).unwrap() as i64 - bias;
                     self.prev_delta += delta_of_delta;
@@ -531,7 +531,7 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
         }
 
         let current_byte_remaining = 8 - self.current_bits_index;
-        let mut ans = if count <= current_byte_remaining {
+        let ans = if count <= current_byte_remaining {
             let current_index = self.index;
             self.current_bits_index += count;
             if self.current_bits_index == 8 {
@@ -566,13 +566,6 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
             }
             ans
         };
-        // negative number
-        const SIGN_BIT: u64 = 1 << 31;
-        const SIGN_EXTENSION: u64 = 0xFFFFFFFF00000000;
-
-        if ans & SIGN_BIT != 0 {
-            ans |= SIGN_EXTENSION;
-        }
         Some(ans)
     }
 }
