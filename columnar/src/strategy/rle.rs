@@ -567,8 +567,11 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
             ans
         };
         // negative number
-        if ans > u32::MAX as u64 / 2 {
-            ans |= 0xFFFFFFFF00000000;
+        const SIGN_BIT: u64 = 1 << 31;
+        const SIGN_EXTENSION: u64 = 0xFFFFFFFF00000000;
+
+        if ans & SIGN_BIT != 0 {
+            ans |= SIGN_EXTENSION;
         }
         Some(ans)
     }
