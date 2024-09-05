@@ -325,17 +325,21 @@ impl<'de, T: DeltaRleable> DeltaRleDecoder<'de, T> {
 pub struct DeltaOfDeltaEncoder {
     bits: Vec<u64>,
     last_used_bit: u8,
+    head_num: Option<i64>,
     prev_value: i64,
     prev_delta: i64,
+    use_bit: bool,
 }
 
 impl Default for DeltaOfDeltaEncoder {
     fn default() -> Self {
         Self {
             bits: vec![0u64],
+            head_num: None,
             last_used_bit: 0,
             prev_value: 0,
             prev_delta: 0,
+            use_bit: false,
         }
     }
 }
@@ -346,8 +350,25 @@ impl DeltaOfDeltaEncoder {
     }
 
     pub fn append(&mut self, value: i64) -> Result<(), ColumnarError> {
-        let delta = value - self.prev_value;
-        let delta_of_delta = delta - self.prev_delta;
+        // println!("append value {}", value);
+        if self.head_num.is_none() {
+            self.head_num = Some(value);
+            self.prev_value = value;
+            return Ok(());
+        }
+        self.use_bit = true;
+        let delta = value
+            .checked_sub(self.prev_value)
+            .ok_or(ColumnarError::RleEncodeError(
+                "delta overflow 64 bits".to_string(),
+            ))?;
+
+        let delta_of_delta =
+            delta
+                .checked_sub(self.prev_delta)
+                .ok_or(ColumnarError::RleEncodeError(
+                    "delta of delta overflow 64 bits".to_string(),
+                ))?;
         self.prev_value = value;
         self.prev_delta = delta;
         if delta_of_delta == 0 {
@@ -355,13 +376,18 @@ impl DeltaOfDeltaEncoder {
         } else if (-63..=64).contains(&delta_of_delta) {
             self.write_bits(0b10, 2);
             self.write_bits((delta_of_delta + 63) as u64, 7);
-        } else if (-255..=255).contains(&delta_of_delta) {
+        } else if (-255..=256).contains(&delta_of_delta) {
             self.write_bits(0b110, 3);
             self.write_bits((delta_of_delta + 255) as u64, 9);
         } else if (-2047..=2048).contains(&delta_of_delta) {
             self.write_bits(0b1110, 4);
             self.write_bits((delta_of_delta + 2047) as u64, 12);
         } else {
+            if delta_of_delta < 0 || delta_of_delta > i32::MAX as i64 {
+                return Err(ColumnarError::RleEncodeError(
+                    "Delta of delta value is too large to be encoded in 32 bits".to_string(),
+                ));
+            }
             self.write_bits(0b1111, 4);
             self.write_bits(delta_of_delta as u64, 32);
         }
@@ -389,19 +415,28 @@ impl DeltaOfDeltaEncoder {
     }
 
     pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
-        let mut bytes = Vec::with_capacity(self.bits.len() * 8 + 1);
-        let used = self.last_used_bit.div_ceil(8);
-        bytes.push(self.last_used_bit % 8);
-        for bits in &self.bits[..self.bits.len() - 1] {
-            bytes.extend_from_slice(&bits.to_be_bytes());
+        let mut bytes = Vec::with_capacity(self.bits.len() * 8 + 1 + 8);
+        if let Some(head_num) = self.head_num {
+            bytes.extend_from_slice(&head_num.to_le_bytes());
         }
-        bytes.extend_from_slice(&self.bits.last().unwrap().to_be_bytes()[..used as usize]);
+        let used = self.last_used_bit.div_ceil(8);
+        bytes.push(if self.last_used_bit % 8 == 0 && self.use_bit {
+            8
+        } else {
+            self.last_used_bit % 8
+        });
+        for bits in &self.bits[..self.bits.len() - 1] {
+            bytes.extend(bits.to_be_bytes());
+        }
+        bytes.extend(&self.bits.last().unwrap().to_be_bytes()[..used as usize]);
+        // println!("bits {:?}", &bytes);
         Ok(bytes)
     }
 }
 
 pub struct DeltaOfDeltaDecoder<'de, T> {
     bits: &'de [u8],
+    head_num: Option<i64>,
     prev_value: i64,
     prev_delta: i64,
     index: usize,
@@ -412,10 +447,25 @@ pub struct DeltaOfDeltaDecoder<'de, T> {
 
 impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
     pub fn new(bytes: &'de [u8]) -> Self {
-        let last_used_bit = bytes[0];
-        let bits = &bytes[1..];
+        // println!("\ndecode bytes {:?}", &bytes);
+        if bytes.len() < 8 + 1 {
+            return Self {
+                bits: bytes,
+                head_num: None,
+                prev_value: 0,
+                prev_delta: 0,
+                index: 0,
+                current_bits_index: 0,
+                last_used_bit: 0,
+                _t: PhantomData,
+            };
+        }
+        let head_num = i64::from_le_bytes(bytes[..8].try_into().unwrap());
+        let last_used_bit = bytes[8];
+        let bits = &bytes[9..];
         Self {
             bits,
+            head_num: Some(head_num),
             prev_value: 0,
             prev_delta: 0,
             index: 0,
@@ -434,25 +484,31 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
     }
 
     fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
-        match self.read_bits(1) {
-            Some(0) => self.prev_value += self.prev_delta,
-            Some(1) => {
-                let (num_bits, bias) = if self.read_bits(1).unwrap() == 0 {
-                    (7, 63)
-                } else if self.read_bits(1).unwrap() == 0 {
-                    (9, 255)
-                } else if self.read_bits(1).unwrap() == 0 {
-                    (12, 2047)
-                } else {
-                    (32, 0)
-                };
-                let delta_of_delta = self.read_bits(num_bits).unwrap() as i64 - bias;
-                self.prev_delta += delta_of_delta;
-                self.prev_value += self.prev_delta;
-            }
-            None => return Ok(None),
-            _ => panic!("delta of delta read flag should be 0 or 1"),
-        };
+        if self.head_num.is_some() {
+            self.prev_value = self.head_num.unwrap();
+            self.head_num = None;
+        } else {
+            match self.read_bits(1) {
+                Some(0) => self.prev_value += self.prev_delta,
+                Some(1) => {
+                    let (num_bits, bias) = if self.read_bits(1).unwrap() == 0 {
+                        (7, 63)
+                    } else if self.read_bits(1).unwrap() == 0 {
+                        (9, 255)
+                    } else if self.read_bits(1).unwrap() == 0 {
+                        (12, 2047)
+                    } else {
+                        (32, 0)
+                    };
+                    let delta_of_delta = self.read_bits(num_bits).unwrap() as i64 - bias;
+                    self.prev_delta += delta_of_delta;
+                    self.prev_value += self.prev_delta;
+                }
+                None => return Ok(None),
+                _ => panic!("delta of delta read flag should be 0 or 1"),
+            };
+        }
+        // println!("prev_value {}", self.prev_value);
         Ok(Some(self.prev_value.try_into().map_err(|_| {
             ColumnarError::RleDecodeError(format!(
                 "{} cannot be safely converted from i128",
@@ -483,7 +539,9 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
                 self.current_bits_index = 0;
             }
             let mask = u8::MAX >> (8 - count);
-            let ans = self.bits[current_index] >> (current_byte_remaining - count) & mask;
+            let current_byte = self.bits[current_index];
+            let after_shift = current_byte >> (current_byte_remaining - count);
+            let ans = after_shift & mask;
             Some(ans as u64)
         } else {
             let mut ans = (self.bits[self.index] & u8::MAX >> (8 - current_byte_remaining)) as u64;
@@ -502,6 +560,10 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
             // read rest bits
             ans = (ans << rest) | (self.bits[self.index] >> (8 - rest)) as u64;
             self.current_bits_index += rest;
+            if self.current_bits_index == 8 {
+                self.index += 1;
+                self.current_bits_index = 0;
+            }
             Some(ans)
         }
     }
@@ -556,7 +618,7 @@ mod test {
         rle_encoder.append(2).unwrap();
         rle_encoder.append(2).unwrap();
         let buf = rle_encoder.finish().unwrap();
-        println!("buf {:?}", &buf);
+        // println!("buf {:?}", &buf);
         let mut rle_decoder = AnyRleDecoder::<u64>::new(&buf);
         assert_eq!(rle_decoder.decode().unwrap(), vec![1000, 1000, 2, 2, 2]);
     }
@@ -590,7 +652,7 @@ mod test {
         encoder.append(5).unwrap();
         encoder.append(6).unwrap();
         let buf = encoder.finish().unwrap();
-        println!("{:?}", buf);
+        // println!("{:?}", buf);
         let mut delta_rle_decoder = DeltaRleDecoder::new(&buf);
         let values: Vec<u64> = delta_rle_decoder.decode().unwrap();
         assert_eq!(values, vec![1, 2, 3, 4, 5, 6]);
@@ -607,7 +669,7 @@ mod test {
         encoder.append(5).unwrap();
         encoder.append(6).unwrap();
         let buf = encoder.finish().unwrap();
-        println!("{:?}", buf);
+        // println!("{:?}", buf);
         let mut delta_of_delta_rle_decoder = DeltaOfDeltaDecoder::new(&buf);
         let values: Vec<i64> = delta_of_delta_rle_decoder.decode().unwrap();
         assert_eq!(values, vec![1, 2, 3, 4, 5, 6]);

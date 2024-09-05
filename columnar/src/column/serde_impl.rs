@@ -13,7 +13,7 @@ impl<T: Rleable> Serialize for RleColumn<T> {
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)
@@ -26,7 +26,7 @@ impl<T: DeltaOfDeltable> Serialize for DeltaOfDeltaColumn<T> {
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)
@@ -39,7 +39,7 @@ impl<T: DeltaRleable> Serialize for DeltaRleColumn<T> {
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)
@@ -52,7 +52,7 @@ impl Serialize for BoolRleColumn {
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)
@@ -171,7 +171,7 @@ where
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)

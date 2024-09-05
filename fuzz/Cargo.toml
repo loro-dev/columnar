@@ -15,11 +15,7 @@ postcard = "1.0"
 
 
 [dependencies.serde_columnar]
-path = ".."
-
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
+path = "../columnar"
 
 [profile.release]
 debug = 1
@@ -51,5 +47,11 @@ doc = false
 [[bin]]
 name = "iter_from_bytes"
 path = "fuzz_targets/iter_from_bytes.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "delta_of_delta"
+path = "fuzz_targets/delta_of_delta.rs"
 test = false
 doc = false
