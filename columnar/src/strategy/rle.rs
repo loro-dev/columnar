@@ -383,13 +383,13 @@ impl DeltaOfDeltaEncoder {
             self.write_bits(0b1110, 4);
             self.write_bits((delta_of_delta + 2047) as u64, 12);
         } else {
-            if delta_of_delta < 0 || delta_of_delta > i32::MAX as i64 {
+            if delta_of_delta < i32::MIN as i64 || delta_of_delta > i32::MAX as i64 {
                 return Err(ColumnarError::RleEncodeError(
                     "Delta of delta value is too large to be encoded in 32 bits".to_string(),
                 ));
             }
             self.write_bits(0b1111, 4);
-            self.write_bits(delta_of_delta as u64, 32);
+            self.write_bits(delta_of_delta as u32 as u64, 32);
         }
         Ok(())
     }
@@ -531,7 +531,7 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
         }
 
         let current_byte_remaining = 8 - self.current_bits_index;
-        if count <= current_byte_remaining {
+        let mut ans = if count <= current_byte_remaining {
             let current_index = self.index;
             self.current_bits_index += count;
             if self.current_bits_index == 8 {
@@ -542,7 +542,7 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
             let current_byte = self.bits[current_index];
             let after_shift = current_byte >> (current_byte_remaining - count);
             let ans = after_shift & mask;
-            Some(ans as u64)
+            ans as u64
         } else {
             let mut ans = (self.bits[self.index] & u8::MAX >> (8 - current_byte_remaining)) as u64;
             self.index += 1;
@@ -564,8 +564,13 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
                 self.index += 1;
                 self.current_bits_index = 0;
             }
-            Some(ans)
+            ans
+        };
+        // negative number
+        if ans > u32::MAX as u64 / 2 {
+            ans |= 0xFFFFFFFF00000000;
         }
+        Some(ans)
     }
 }
 
