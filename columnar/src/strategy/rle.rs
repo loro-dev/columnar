@@ -321,6 +321,8 @@ impl<'de, T: DeltaRleable> DeltaRleDecoder<'de, T> {
     }
 }
 
+const MAX_DELTA_OF_DELTA: i64 = 1 << 20;
+
 #[derive(Debug)]
 pub struct DeltaOfDeltaEncoder {
     bits: Vec<u64>,
@@ -382,9 +384,9 @@ impl DeltaOfDeltaEncoder {
         } else if (-2047..=2048).contains(&delta_of_delta) {
             self.write_bits(0b1110, 4);
             self.write_bits((delta_of_delta + 2047) as u64, 12);
-        } else if ((-(1 << 20) + 1)..=(1 << 20)).contains(&delta_of_delta) {
+        } else if ((-MAX_DELTA_OF_DELTA + 1)..=MAX_DELTA_OF_DELTA).contains(&delta_of_delta) {
             self.write_bits(0b11110, 5);
-            self.write_bits((delta_of_delta + (1 << 20) - 1) as u64, 21);
+            self.write_bits((delta_of_delta + MAX_DELTA_OF_DELTA - 1) as u64, 21);
         } else {
             self.write_bits(0b11111, 5);
             self.write_bits(delta_of_delta as u64, 64);
@@ -412,6 +414,7 @@ impl DeltaOfDeltaEncoder {
         }
     }
 
+    #[inline(never)]
     pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
         let mut bytes = Vec::with_capacity(self.bits.len() * 8 + 1 + 8);
         if let Some(head_num) = self.head_num {
@@ -496,7 +499,7 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
                     } else if self.read_bits(1).unwrap() == 0 {
                         (12, 2047)
                     } else if self.read_bits(1).unwrap() == 0 {
-                        (21, (1 << 20) - 1)
+                        (21, MAX_DELTA_OF_DELTA - 1)
                     } else {
                         (64, 0)
                     };
