@@ -2,6 +2,8 @@ use std::ops::{Deref, DerefMut};
 
 use postcard::{de_flavors::Flavor as DeFlavor, ser_flavors::Flavor, Deserializer, Serializer};
 
+use crate::ColumnarError;
+
 #[derive(Debug)]
 pub struct Cursor<'de> {
     original: &'de [u8],
@@ -64,6 +66,10 @@ impl<'de> ColumnarDecoder<'de> {
         Self {
             de: Deserializer::from_flavor(cursor),
         }
+    }
+
+    pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
+        Ok(self.de.finalize()?)
     }
 }
 

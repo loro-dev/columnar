@@ -211,6 +211,10 @@ where
             Ok(self.last_value.clone())
         }
     }
+
+    pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
+        self.de.finalize()
+    }
 }
 
 pub struct BoolRleDecoder<'de> {
@@ -254,6 +258,10 @@ impl<'de> BoolRleDecoder<'de> {
         }
         self.count -= 1;
         Ok(Some(self.last_value))
+    }
+
+    pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
+        self.de.finalize()
     }
 }
 
@@ -318,6 +326,10 @@ impl<'de, T: DeltaRleable> DeltaRleDecoder<'de, T> {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
+        self.rle.finalize()
     }
 }
 
