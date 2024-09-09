@@ -56,7 +56,7 @@ serde_columnar = "0.3.4"
 
 - `strategy`:
   - The columnar compression strategy applied to this field.
-  - Optional value: `Rle`/`DeltaRle`/`BoolRle`.
+  - Optional value: `Rle`/`DeltaRle`/`BoolRle`/`DeltaOfDelta`.
   - Only available for `row` struct.
 - `class`:
   - Declare this field is a container for rows. The field's type is usually `Vec` or `HashMap` and their variants.
@@ -95,6 +95,8 @@ struct RowStruct {
     married: bool
     #[columnar(optional, index = 0)]     // This field is optional, which means that this field can be added in this version or deleted in a future version
     future: String
+    #[columnar(strategy = "DeltaOfDelta")] // this field will be encoded by `DeltaOfDelta`
+    time: i64
 }
 
 #[columnar(ser, de)]                    // derive `Serialize` and `Deserialize`
