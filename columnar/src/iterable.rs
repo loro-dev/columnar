@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use crate::{
-    columnar_internal::Cursor, strategy::MAX_RLE_COUNT, ColumnarError, DeltaRleable, Rleable,
+    column::delta_of_delta::DeltaOfDeltable, columnar_internal::Cursor, strategy::MAX_RLE_COUNT,
+    ColumnarError, DeltaOfDeltaDecoder, DeltaRleable, Rleable,
 };
 use postcard::Deserializer;
 use serde::Deserialize;
@@ -119,6 +120,29 @@ impl<'de, T: Rleable> AnyRleIter<'de, T> {
 impl<'de, T: Rleable> Iterator for AnyRleIter<'de, T> {
     type Item = Result<T, ColumnarError>;
 
+    fn next(&mut self) -> Option<Self::Item> {
+        self.try_next().transpose()
+    }
+}
+
+pub struct DeltaOfDeltaIter<'de, T> {
+    decoder: DeltaOfDeltaDecoder<'de, T>,
+}
+
+impl<'de, T: DeltaOfDeltable> DeltaOfDeltaIter<'de, T> {
+    pub fn new(bytes: &'de [u8]) -> Self {
+        Self {
+            decoder: DeltaOfDeltaDecoder::new(bytes),
+        }
+    }
+
+    pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
+        self.decoder.try_next()
+    }
+}
+
+impl<'de, T: DeltaOfDeltable> Iterator for DeltaOfDeltaIter<'de, T> {
+    type Item = Result<T, ColumnarError>;
     fn next(&mut self) -> Option<Self::Item> {
         self.try_next().transpose()
     }
@@ -269,6 +293,15 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleIter<'de, T> {
     {
         let bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
         Ok(DeltaRleIter::new(bytes))
+    }
+}
+impl<'de, T: DeltaOfDeltable> Deserialize<'de> for DeltaOfDeltaIter<'de, T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
+        Ok(DeltaOfDeltaIter::new(bytes))
     }
 }
 

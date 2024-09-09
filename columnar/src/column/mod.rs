@@ -1,10 +1,13 @@
 pub mod bool_rle;
+pub mod delta_of_delta;
 pub mod delta_rle;
 pub mod rle;
 pub mod serde_impl;
 
 use crate::{columnar_internal::ColumnarEncoder, ColumnarDecoder, ColumnarError};
-use crate::{BoolRleColumn, DeltaRleColumn, DeltaRleable, RleColumn, Rleable, Strategy};
+use crate::{
+    BoolRleColumn, DeltaOfDeltaColumn, DeltaRleColumn, DeltaRleable, RleColumn, Rleable, Strategy,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::DerefMut;
@@ -36,6 +39,15 @@ impl ColumnAttr {
 
 impl From<Vec<bool>> for BoolRleColumn {
     fn from(value: Vec<bool>) -> Self {
+        Self {
+            data: value,
+            attr: ColumnAttr::empty(),
+        }
+    }
+}
+
+impl<T: From<i64> + Into<i64> + Copy> From<Vec<T>> for DeltaOfDeltaColumn<T> {
+    fn from(value: Vec<T>) -> Self {
         Self {
             data: value,
             attr: ColumnAttr::empty(),

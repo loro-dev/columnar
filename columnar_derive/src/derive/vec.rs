@@ -91,8 +91,7 @@ fn generate_per_field_to_column(field_arg: &FieldArgs) -> syn::Result<proc_macro
         &format!("column_{}", field_name.as_ref().unwrap()),
         proc_macro2::Span::call_site(),
     );
-    let can_copy = field_arg.strategy == Some("DeltaRle".to_string())
-        || field_arg.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(field_arg)?;
+    let can_copy = field_arg.can_copy(); //is_field_type_is_can_copy(field_arg)?;
     let row_content = if can_copy {
         quote::quote!(row.#field_name)
     } else if field_attr_ty.is_some() {
@@ -261,8 +260,7 @@ fn generate_per_column_to_de_columns(
             proc_macro2::Span::call_site(),
         );
         columns_quote.push(quote::quote!(#column_index));
-        let is_num = args.strategy == Some("DeltaRle".to_string())
-            || args.strategy == Some("BoolRle".to_string());
+        let is_num = args.can_copy();
         let column_type_token = args.get_strategy_column(quote::quote!(#field_type))?;
         let column_type = if is_num {
             column_type_token

@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BoolRleColumn, ColumnTrait, DeltaRleColumn, DeltaRleable, GenericColumn, RleColumn, Rleable,
+    column::delta_of_delta::DeltaOfDeltable, BoolRleColumn, ColumnTrait, DeltaOfDeltaColumn,
+    DeltaRleColumn, DeltaRleable, GenericColumn, RleColumn, Rleable,
 };
 
 impl<T: Rleable> Serialize for RleColumn<T> {
@@ -12,7 +13,20 @@ impl<T: Rleable> Serialize for RleColumn<T> {
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
+            serde::ser::Error::custom(e.to_string())
+        })?;
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<T: DeltaOfDeltable> Serialize for DeltaOfDeltaColumn<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let bytes = self.encode().map_err(|e| {
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)
@@ -25,7 +39,7 @@ impl<T: DeltaRleable> Serialize for DeltaRleColumn<T> {
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)
@@ -38,7 +52,7 @@ impl Serialize for BoolRleColumn {
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)
@@ -95,6 +109,31 @@ impl<'de, T: DeltaRleable> Deserialize<'de> for DeltaRleColumn<T> {
     }
 }
 
+impl<'de, T: DeltaOfDeltable> Deserialize<'de> for DeltaOfDeltaColumn<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        pub struct ColumnVisitor<T>(PhantomData<T>);
+        impl<'de, T: DeltaOfDeltable> serde::de::Visitor<'de> for ColumnVisitor<T> {
+            type Value = DeltaOfDeltaColumn<T>;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a columnar encoded delta of delta column")
+            }
+            fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                DeltaOfDeltaColumn::decode(v).map_err(|e| {
+                    eprintln!("Column Deserialize Error: {:?}", e);
+                    serde::de::Error::custom(e.to_string())
+                })
+            }
+        }
+        deserializer.deserialize_bytes(ColumnVisitor(Default::default()))
+    }
+}
+
 impl<'de, T: Rleable> Deserialize<'de> for RleColumn<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -132,7 +171,7 @@ where
         S: serde::Serializer,
     {
         let bytes = self.encode().map_err(|e| {
-            eprintln!("Column Serialize Error: {:?}", e);
+            // eprintln!("Column Serialize Error: {:?}", e);
             serde::ser::Error::custom(e.to_string())
         })?;
         serializer.serialize_bytes(&bytes)

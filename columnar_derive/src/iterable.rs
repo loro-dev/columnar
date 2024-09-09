@@ -123,6 +123,7 @@ impl TableIterFieldAttr {
             Strategy::Rle => quote::quote!(#name: AnyRleIter<'__iter, #ty>),
             Strategy::BoolRle => quote::quote!(#name: BoolRleIter<'__iter>),
             Strategy::DeltaRle => quote::quote!(#name: DeltaRleIter<'__iter, #ty>),
+            Strategy::DeltaOfDelta => quote::quote!(#name: DeltaOfDeltaIter<'__iter, #ty>),
             Strategy::None => {
                 parse_quote!(#name: GenericIter<'__iter, #ty>)
             }

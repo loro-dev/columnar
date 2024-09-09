@@ -1,6 +1,7 @@
 mod rle;
 pub use rle::{
-    AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaRleDecoder, DeltaRleEncoder,
+    AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaOfDeltaDecoder,
+    DeltaOfDeltaEncoder, DeltaRleDecoder, DeltaRleEncoder,
 };
 
 use crate::ColumnarError;
@@ -12,6 +13,7 @@ pub enum Strategy {
     Rle = 1,
     BoolRle,
     DeltaRle,
+    DeltaOfDelta,
     None,
 }
 
@@ -23,6 +25,7 @@ impl TryFrom<u8> for Strategy {
             1 => Ok(Strategy::Rle),
             2 => Ok(Strategy::BoolRle),
             3 => Ok(Strategy::DeltaRle),
+            4 => Ok(Strategy::DeltaOfDelta),
             _ => Err(ColumnarError::InvalidStrategy(value)),
         }
     }

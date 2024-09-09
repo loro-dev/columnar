@@ -592,3 +592,28 @@ fn nested() {
     assert_eq!(c, read_c);
     insta::assert_yaml_snapshot!(bytes);
 }
+
+#[test]
+fn delta_of_delta() {
+    #[columnar(vec, ser, de)]
+    #[derive(Debug, Clone, PartialEq)]
+    struct A {
+        #[columnar(strategy = "DeltaOfDelta")]
+        a: i64,
+    }
+
+    #[columnar(ser, de)]
+    #[derive(Debug, Clone, PartialEq)]
+    struct Table {
+        #[columnar(class = "vec")]
+        data: Vec<A>,
+    }
+
+    let table = Table {
+        data: vec![A { a: 1 }, A { a: 2 }, A { a: 3 }],
+    };
+    let bytes = to_vec(&table).unwrap();
+    let read_table = from_bytes(&bytes).unwrap();
+    assert_eq!(table, read_table);
+    insta::assert_yaml_snapshot!(bytes);
+}

@@ -163,8 +163,7 @@ fn generate_with_map_per_columns(
         columns_quote.push(quote::quote!(#column_name));
         let columns_type = quote::quote!(::std::vec::Vec<_>);
         columns_types.push(columns_type);
-        let can_copy = args.strategy == Some("DeltaRle".to_string())
-            || args.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(args)?;
+        let can_copy = args.can_copy(); //is_field_type_is_can_copy(args)?;
         let cow_columns_field = if can_copy {
             quote::quote!(v.#field_name)
         } else if field_attr_ty.is_some() {
@@ -280,8 +279,7 @@ fn generate_map_per_column_to_de_columns(
         );
         columns_quote.push(quote::quote!(#column_index));
         field_names.push(quote::quote!(#field_name));
-        let is_num = args.strategy == Some("DeltaRle".to_string())
-            || args.strategy == Some("BoolRle".to_string()); //is_field_type_is_can_copy(args)?;
+        let is_num = args.can_copy(); //is_field_type_is_can_copy(args)?;
         let column_type = if is_num {
             args.get_strategy_column(quote::quote!(#field_type))?
         } else if class.is_some() {

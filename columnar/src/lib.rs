@@ -31,6 +31,8 @@
 //!     gender: String,
 //!     #[columnar(strategy = "BoolRle")]
 //!     married: bool
+//!     #[columnar(strategy = "DeltaOfDelta")]
+//!     time: i64
 //! }
 //!
 //! #[columnar]
@@ -60,10 +62,11 @@
 //! - `#[columnar(type = "vec"|"map")]`:
 //!   - vec means the decorated field T is a container, holds Value and satisfies `&T: IntoIter<Item=&Value>` `T: FromIterator<Value>`
 //!   - map means the decorated field T is a container, holds Value and satisfies `&T: IntoIter<Item=(&K, &Value)>` `T: FromIterator<(K, Value)>`
-//! - `#[columnar(strategy = "Rle"|"BoolRle"|"DeltaRle")]`: You can only choose one from the three
+//! - `#[columnar(strategy = "Rle"|"BoolRle"|"DeltaRle"|"DeltaOfDelta")]`: You can only choose one from
 //!   - Rle [crate::strategy::AnyRleEncoder]
 //!   - BoolRle [crate::strategy::BoolRleEncoder]
 //!   - DeltaRle [crate::strategy::DeltaRleEncoder]
+//!   - DeltaOfDelta [crate::strategy::DeltaOfDeltaEncoder]
 //! - `#[columnar(original_type="u32")]`: this attribute is used to tell the columnar encoding the original type of the field, which is used when the field is a number
 //! - `#[columnar(skip)]`: the same as the [skip](https://serde.rs/field-attrs.html#skip) attribute in serde
 //!
@@ -76,6 +79,7 @@ use std::ops::DerefMut;
 mod column;
 pub use column::{
     bool_rle::BoolRleColumn,
+    delta_of_delta::DeltaOfDeltaColumn,
     delta_rle::{DeltaRleColumn, DeltaRleable},
     rle::{RleColumn, Rleable},
     ColumnAttr, ColumnTrait, GenericColumn,
@@ -88,8 +92,8 @@ pub use row::{KeyRowDe, KeyRowSer, RowDe, RowSer};
 use serde::{Deserialize, Serialize};
 mod strategy;
 pub use strategy::{
-    AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaRleDecoder, DeltaRleEncoder,
-    Strategy,
+    AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaOfDeltaDecoder,
+    DeltaOfDeltaEncoder, DeltaRleDecoder, DeltaRleEncoder, Strategy,
 };
 mod wrap;
 pub use wrap::{ColumnarMap, ColumnarVec};

@@ -71,6 +71,7 @@ pub enum Strategy {
     Rle,
     DeltaRle,
     BoolRle,
+    DeltaOfDelta,
     None,
 }
 
@@ -81,6 +82,7 @@ impl Strategy {
                 "Rle" => Self::Rle,
                 "DeltaRle" => Self::DeltaRle,
                 "BoolRle" => Self::BoolRle,
+                "DeltaOfDelta" => Self::DeltaOfDelta,
                 _ => unreachable!("strategy should be Rle, BoolRle or DeltaRle"),
             }
         } else {
@@ -102,6 +104,12 @@ pub trait Args {
     fn index(&self) -> Option<usize>;
     fn optional(&self) -> bool;
     fn strategy(&self) -> Strategy;
+    fn can_copy(&self) -> bool {
+        match self.strategy() {
+            Strategy::BoolRle | Strategy::DeltaRle | Strategy::DeltaOfDelta => true,
+            Strategy::Rle | Strategy::None => false,
+        }
+    }
     fn class(&self) -> Option<AsType>;
     fn has_borrow_lifetime(&self) -> bool;
     fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>>;
@@ -112,6 +120,9 @@ pub trait Args {
             Strategy::Rle => Ok(quote::quote!(::serde_columnar::RleColumn::<#ty>)),
             Strategy::BoolRle => Ok(quote::quote!(::serde_columnar::BoolRleColumn)),
             Strategy::DeltaRle => Ok(quote::quote!(::serde_columnar::DeltaRleColumn::<#ty>)),
+            Strategy::DeltaOfDelta => {
+                Ok(quote::quote!(::serde_columnar::DeltaOfDeltaColumn::<#ty>))
+            }
             Strategy::None => {
                 if self.class().is_some() {
                     let self_ty = &self.ty();
