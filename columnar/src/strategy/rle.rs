@@ -583,6 +583,15 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
         };
         Some(ans)
     }
+
+    pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
+        let idx = if self.current_bits_index != 0 {
+            (self.index + 1).min(self.bits.len())
+        } else {
+            self.index
+        };
+        Ok(&self.bits[idx..])
+    }
 }
 
 impl<'de, T: Rleable> Iterator for AnyRleDecoder<'de, T> {
