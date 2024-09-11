@@ -655,16 +655,14 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
         Some(ans)
     }
 
-    pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
+    pub fn finalize(mut self) -> Result<&'de [u8], ColumnarError> {
         if self.bits.is_empty() {
             return Ok(self.bits);
         }
-        let total_bits = (self.bits.len() - 1) * 8 + self.last_used_bit as usize;
-        let read_bits = self.index * 8 + self.current_bits_index as usize;
-        println!("total {} read bits {}", total_bits, read_bits);
-        let remaining_bits = total_bits - read_bits;
-        let remaining_bytes = remaining_bits / 8;
-        Ok(&self.bits[self.bits.len() - remaining_bytes..])
+        if self.current_bits_index > 0 {
+            self.index += 1;
+        }
+        Ok(&self.bits[self.index..])
     }
 
     pub fn take_n_finalize(mut self, n: usize) -> Result<(Vec<T>, &'de [u8]), ColumnarError> {
