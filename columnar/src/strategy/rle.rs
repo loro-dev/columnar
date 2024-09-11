@@ -72,6 +72,19 @@ where
         Ok(self.ser.into_bytes())
     }
 
+    pub fn take_encoder(mut self) -> ColumnarEncoder {
+        match self.take_state() {
+            RleState::LoneVal(value) => self.flush_lit_run(vec![value]),
+            RleState::Run(value, len) => self.flush_run(&value, len),
+            RleState::LiteralRun(last, mut run) => {
+                run.push(last);
+                self.flush_lit_run(run);
+            }
+            RleState::Empty => {}
+        };
+        self.ser
+    }
+
     fn append_value<BT: Borrow<T>>(&mut self, value: BT) -> Result<(), ColumnarError> {
         self.state = match self.take_state() {
             RleState::Empty => RleState::LoneVal(value.borrow().clone()),
@@ -215,6 +228,21 @@ where
     pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
         self.de.finalize()
     }
+
+    pub fn take_n_finalize(mut self, n: usize) -> Result<(Vec<T>, &'de [u8]), ColumnarError> {
+        let mut ans = Vec::with_capacity(n);
+        for _ in 0..n {
+            if let Some(v) = self.try_next()? {
+                ans.push(v)
+            } else {
+                return Err(ColumnarError::RleDecodeError(format!(
+                    "The elements of decoder is less than n({})",
+                    n
+                )));
+            }
+        }
+        Ok((ans, self.finalize()?))
+    }
 }
 
 pub struct BoolRleDecoder<'de> {
@@ -263,6 +291,21 @@ impl<'de> BoolRleDecoder<'de> {
     pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
         self.de.finalize()
     }
+
+    pub fn take_n_finalize(mut self, n: usize) -> Result<(Vec<bool>, &'de [u8]), ColumnarError> {
+        let mut ans = Vec::with_capacity(n);
+        for _ in 0..n {
+            if let Some(v) = self.try_next()? {
+                ans.push(v)
+            } else {
+                return Err(ColumnarError::RleDecodeError(format!(
+                    "The elements of decoder is less than n({})",
+                    n
+                )));
+            }
+        }
+        Ok((ans, self.finalize()?))
+    }
 }
 
 #[derive(Default)]
@@ -287,6 +330,10 @@ impl DeltaRleEncoder {
 
     pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
         self.rle.finish()
+    }
+
+    pub fn take_encoder(self) -> ColumnarEncoder {
+        self.rle.take_encoder()
     }
 }
 
@@ -330,6 +377,26 @@ impl<'de, T: DeltaRleable> DeltaRleDecoder<'de, T> {
 
     pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
         self.rle.finalize()
+    }
+
+    pub fn take_n_finalize(mut self, n: usize) -> Result<(Vec<T>, &'de [u8]), ColumnarError> {
+        let mut ans = Vec::with_capacity(n);
+        for _ in 0..n {
+            if let Some(v) = self.try_next()? {
+                ans.push(T::try_from(v).map_err(|_| {
+                    ColumnarError::RleDecodeError(format!(
+                        "{} cannot be safely converted from i128",
+                        v
+                    ))
+                })?)
+            } else {
+                return Err(ColumnarError::RleDecodeError(format!(
+                    "The elements of decoder is less than n({})",
+                    n
+                )));
+            }
+        }
+        Ok((ans, self.finalize()?))
     }
 }
 
@@ -591,6 +658,21 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
             self.index
         };
         Ok(&self.bits[idx..])
+    }
+
+    pub fn take_n_finalize(mut self, n: usize) -> Result<(Vec<T>, &'de [u8]), ColumnarError> {
+        let mut ans = Vec::with_capacity(n);
+        for _ in 0..n {
+            if let Some(v) = self.try_next()? {
+                ans.push(v);
+            } else {
+                return Err(ColumnarError::RleDecodeError(format!(
+                    "The elements of decoder is less than n({})",
+                    n
+                )));
+            }
+        }
+        Ok((ans, self.finalize()?))
     }
 }
 

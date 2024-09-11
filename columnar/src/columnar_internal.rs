@@ -56,7 +56,7 @@ impl<'de> DeFlavor<'de> for Cursor<'de> {
 }
 
 /// The decoder of columnar system
-pub(crate) struct ColumnarDecoder<'de> {
+pub struct ColumnarDecoder<'de> {
     de: Deserializer<'de, Cursor<'de>>,
 }
 
@@ -121,7 +121,7 @@ impl Flavor for AllocVec {
 }
 
 /// The encoder of columnar system
-pub(crate) struct ColumnarEncoder {
+pub struct ColumnarEncoder {
     ser: Serializer<AllocVec>,
 }
 

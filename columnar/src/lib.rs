@@ -73,7 +73,6 @@
 
 mod err;
 
-use columnar_internal::{ColumnarDecoder, ColumnarEncoder};
 pub use err::ColumnarError;
 use std::ops::DerefMut;
 mod column;
@@ -85,6 +84,7 @@ pub use column::{
     ColumnAttr, ColumnTrait, GenericColumn,
 };
 mod columnar_internal;
+pub use columnar_internal::{ColumnarDecoder, ColumnarEncoder};
 pub mod iterable;
 mod row;
 pub use itertools::{izip, Itertools, MultiUnzip};
