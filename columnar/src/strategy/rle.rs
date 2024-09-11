@@ -496,9 +496,7 @@ impl DeltaOfDeltaEncoder {
     #[inline(never)]
     pub fn finish(self) -> Result<Vec<u8>, ColumnarError> {
         let mut bytes = Vec::with_capacity(self.bits.len() * 8 + 1 + 8);
-        if let Some(head_num) = self.head_num {
-            bytes.extend_from_slice(&postcard::to_allocvec(&head_num)?);
-        }
+        bytes.extend_from_slice(&postcard::to_allocvec(&self.head_num)?);
         let used = self.last_used_bit.div_ceil(8);
         bytes.push(if self.last_used_bit % 8 == 0 && self.use_bit {
             8
@@ -526,33 +524,39 @@ pub struct DeltaOfDeltaDecoder<'de, T> {
 }
 
 impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
-    pub fn new(bytes: &'de [u8]) -> Self {
-        // println!("\ndecode bytes {:?}", &bytes);
-        if bytes.len() < 2 {
-            return Self {
-                bits: bytes,
-                head_num: None,
-                prev_value: 0,
-                prev_delta: 0,
-                index: 0,
-                current_bits_index: 0,
-                last_used_bit: 0,
-                _t: PhantomData,
-            };
+    pub fn new(bytes: &'de [u8]) -> Result<Self, ColumnarError> {
+        let (head_num, bytes) = postcard::take_from_bytes(bytes)?;
+        if bytes.is_empty() {
+            return Err(ColumnarError::RleDecodeError(
+                "invalid DeltaOfDelta input".to_string(),
+            ));
         }
-        let (head_num, bytes) = postcard::take_from_bytes(bytes).unwrap();
         let last_used_bit = bytes[0];
         let bits = &bytes[1..];
-        Self {
+        Ok(Self {
             bits,
-            head_num: Some(head_num),
+            head_num,
             prev_value: 0,
             prev_delta: 0,
             index: 0,
             current_bits_index: 0,
             last_used_bit,
             _t: PhantomData,
-        }
+        })
+
+        // let (head_num, bytes) = postcard::take_from_bytes(bytes).unwrap();
+        // let last_used_bit = bytes[0];
+        // let bits = &bytes[1..];
+        // Self {
+        //     bits: &bytes,
+        //     head_num: None,
+        //     prev_value: 0,
+        //     prev_delta: 0,
+        //     index: 0,
+        //     current_bits_index: 0,
+        //     last_used_bit: 0,
+        //     _t: PhantomData,
+        // }
     }
 
     pub fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
@@ -652,12 +656,15 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
     }
 
     pub fn finalize(self) -> Result<&'de [u8], ColumnarError> {
-        let idx = if self.current_bits_index != 0 {
-            (self.index + 1).min(self.bits.len())
-        } else {
-            self.index
-        };
-        Ok(&self.bits[idx..])
+        if self.bits.is_empty() {
+            return Ok(self.bits);
+        }
+        let total_bits = (self.bits.len() - 1) * 8 + self.last_used_bit as usize;
+        let read_bits = self.index * 8 + self.current_bits_index as usize;
+        println!("total {} read bits {}", total_bits, read_bits);
+        let remaining_bits = total_bits - read_bits;
+        let remaining_bytes = remaining_bits / 8;
+        Ok(&self.bits[self.bits.len() - remaining_bytes..])
     }
 
     pub fn take_n_finalize(mut self, n: usize) -> Result<(Vec<T>, &'de [u8]), ColumnarError> {
@@ -667,7 +674,7 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
                 ans.push(v);
             } else {
                 return Err(ColumnarError::RleDecodeError(format!(
-                    "The elements of decoder is less than n({})",
+                    "The elements of decoder is less than n ({})",
                     n
                 )));
             }
@@ -713,7 +720,14 @@ impl<'de, T: DeltaOfDeltable> Iterator for DeltaOfDeltaDecoder<'de, T> {
     }
 }
 
+#[cfg(test)]
 mod test {
+
+    use rand::Rng;
+
+    use crate::column::delta_rle;
+
+    use super::{DeltaOfDeltaEncoder, DeltaRleEncoder};
 
     #[test]
     fn test_rle() {
@@ -777,8 +791,31 @@ mod test {
         encoder.append(6).unwrap();
         let buf = encoder.finish().unwrap();
         // println!("{:?}", buf);
-        let mut delta_of_delta_rle_decoder = DeltaOfDeltaDecoder::new(&buf);
+        let mut delta_of_delta_rle_decoder = DeltaOfDeltaDecoder::new(&buf).unwrap();
         let values: Vec<i64> = delta_of_delta_rle_decoder.decode().unwrap();
         assert_eq!(values, vec![1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn test_size() {
+        let mut rng = rand::thread_rng();
+        for p in 1..10 {
+            let mut i = 0;
+            let mut n = 0;
+            let mut delta_rle = DeltaRleEncoder::new();
+            let mut delta_of_delta = DeltaOfDeltaEncoder::new();
+            while n < 5000 {
+                if rng.gen_bool(0.93) {
+                    delta_rle.append(i);
+                    delta_of_delta.append(i);
+                    n += 1;
+                }
+                i += 1;
+            }
+
+            println!("==0.{}==", p);
+            println!("delta rle {}", delta_rle.finish().unwrap().len());
+            println!("delta of delta {}", delta_of_delta.finish().unwrap().len());
+        }
     }
 }

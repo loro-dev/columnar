@@ -132,7 +132,7 @@ pub struct DeltaOfDeltaIter<'de, T> {
 impl<'de, T: DeltaOfDeltable> DeltaOfDeltaIter<'de, T> {
     pub fn new(bytes: &'de [u8]) -> Self {
         Self {
-            decoder: DeltaOfDeltaDecoder::new(bytes),
+            decoder: DeltaOfDeltaDecoder::new(bytes).unwrap(),
         }
     }
 

@@ -49,7 +49,7 @@ impl<T: DeltaOfDeltable> ColumnTrait for DeltaOfDeltaColumn<T> {
     where
         Self: Sized,
     {
-        let mut delta_of_delta_decoder = DeltaOfDeltaDecoder::new(bytes);
+        let mut delta_of_delta_decoder = DeltaOfDeltaDecoder::new(bytes)?;
         let data = delta_of_delta_decoder.decode()?;
         Ok(Self {
             data,
