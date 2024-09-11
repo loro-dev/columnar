@@ -1,6 +1,6 @@
 [package]
 name = "serde_columnar"
-version = "0.3.8"
+version = "0.3.9"
 edition = "2021"
 authors = ["leonzhao <leeeon233@gmail.com>", "zxch3n <remch183@outlook.com>"]
 license = "MIT OR Apache-2.0"
