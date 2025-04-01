@@ -11,14 +11,11 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 arbitrary = { version = "1.1.7", features = ["derive"] }
-postcard = "1.0"
+postcard = "^1.0"
 
 
 [dependencies.serde_columnar]
 path = "../columnar"
-
-[profile.release]
-debug = 1
 
 [[bin]]
 name = "vec"

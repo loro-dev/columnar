@@ -1,2 +1,14 @@
 [workspace]
 members = ["columnar", "columnar_derive", "fuzz"]
+resolver = "2"
+
+# Added profile settings from fuzz/Cargo.toml
+[profile.release]
+debug = 1
+
+# Added profile settings from columnar/Cargo.toml
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3

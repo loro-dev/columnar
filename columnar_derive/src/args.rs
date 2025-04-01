@@ -29,10 +29,9 @@ pub struct DeriveArgs {
 pub struct FieldArgs {
     /// the name of field
     pub ident: Option<syn::Ident>,
-    pub vis: syn::Visibility,
+    // pub vis: syn::Visibility,
     /// the type of field
     pub ty: Type,
-    pub attrs: Vec<syn::Attribute>,
     // custom attributes
     /// The index of the field in the struct, starts from 0 default.
     pub index: Option<usize>,
@@ -49,21 +48,6 @@ pub struct FieldArgs {
     #[darling(default)]
     pub skip: bool,
     pub iter: Option<Type>,
-}
-
-#[derive(FromVariant, Debug)]
-#[darling(attributes(columnar))]
-pub struct VariantArgs {
-    // pub ident: syn::Ident,
-    // pub vis: syn::Visibility,
-    // pub ty: syn::Type,
-    pub attrs: Vec<syn::Attribute>,
-    /// the type of the column format, vec or map.
-    #[darling(rename = "class")]
-    pub type_: Option<String>,
-    /// If skip, this field will be ignored.
-    #[darling(default)]
-    pub skip: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -98,11 +82,10 @@ pub enum AsType {
 }
 
 pub trait Args {
-    fn ident(&self) -> Option<syn::Ident>;
+    // fn ident(&self) -> Option<syn::Ident>;
     fn ty(&self) -> Option<syn::Type>;
-    fn attrs(&self) -> &[syn::Attribute];
-    fn index(&self) -> Option<usize>;
-    fn optional(&self) -> bool;
+    // fn index(&self) -> Option<usize>;
+    // fn optional(&self) -> bool;
     fn strategy(&self) -> Strategy;
     fn can_copy(&self) -> bool {
         match self.strategy() {
@@ -147,21 +130,10 @@ pub trait Args {
 }
 
 impl Args for FieldArgs {
-    fn ident(&self) -> Option<syn::Ident> {
-        self.ident.clone()
-    }
     fn ty(&self) -> Option<syn::Type> {
         Some(self.ty.clone())
     }
-    fn attrs(&self) -> &[syn::Attribute] {
-        &self.attrs
-    }
-    fn index(&self) -> Option<usize> {
-        self.index
-    }
-    fn optional(&self) -> bool {
-        self.optional
-    }
+
     fn strategy(&self) -> Strategy {
         Strategy::from_str(self.strategy.clone())
     }
@@ -262,50 +234,6 @@ impl Args for FieldArgs {
 
     fn has_borrow_lifetime(&self) -> bool {
         self.borrow.is_some()
-    }
-}
-
-impl Args for VariantArgs {
-    fn ident(&self) -> Option<syn::Ident> {
-        None
-    }
-    fn ty(&self) -> Option<syn::Type> {
-        None
-    }
-    fn attrs(&self) -> &[syn::Attribute] {
-        &self.attrs
-    }
-    fn index(&self) -> Option<usize> {
-        None
-    }
-    fn optional(&self) -> bool {
-        false
-    }
-    fn strategy(&self) -> Strategy {
-        Strategy::None
-    }
-    fn class(&self) -> Option<AsType> {
-        match self.type_.as_deref() {
-            Some("vec") => Some(AsType::Vec),
-            Some("map") => Some(AsType::Map),
-            Some(_) => Some(AsType::Other),
-            None => None,
-        }
-    }
-    fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
-        unimplemented!("Variant have not implemented borrow")
-    }
-
-    fn self_lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
-        unimplemented!("Variant have not implemented self_lifetime")
-    }
-
-    fn has_borrow_lifetime(&self) -> bool {
-        false
-    }
-
-    fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
-        unimplemented!("Variant have not implemented borrow")
     }
 }
 
@@ -448,8 +376,6 @@ fn collect_lifetimes(ty: &syn::Type, out: &mut BTreeSet<syn::Lifetime>) {
         | syn::Type::ImplTrait(_)
         | syn::Type::Infer(_)
         | syn::Type::Verbatim(_) => {}
-
-        #[cfg_attr(all(test, exhaustive), deny(non_exhaustive_omitted_patterns))]
         _ => {}
     }
 }

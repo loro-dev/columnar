@@ -17,7 +17,7 @@ fn row_iterable_strategy() {
         _rle: AnyRleIter::new(&[]),
         _delta_rle: DeltaRleIter::new(&[]),
         _bool_rle: BoolRleIter::new(&[]),
-        _delta_of_delta: DeltaOfDeltaIter::new(&[]),
+        _delta_of_delta: DeltaOfDeltaIter::new(&[0, 0]),
     };
 }
 

@@ -5,6 +5,7 @@ use crate::{
     ColumnarError, DeltaOfDeltaDecoder, DeltaRleable, Rleable,
 };
 use postcard::Deserializer;
+use serde::de::Error;
 use serde::Deserialize;
 
 pub struct GenericIter<'de, T> {
@@ -131,9 +132,8 @@ pub struct DeltaOfDeltaIter<'de, T> {
 
 impl<'de, T: DeltaOfDeltable> DeltaOfDeltaIter<'de, T> {
     pub fn new(bytes: &'de [u8]) -> Self {
-        Self {
-            decoder: DeltaOfDeltaDecoder::new(bytes).unwrap(),
-        }
+        let decoder = DeltaOfDeltaDecoder::new(bytes).unwrap();
+        Self { decoder }
     }
 
     pub(crate) fn try_next(&mut self) -> Result<Option<T>, ColumnarError> {
@@ -301,6 +301,11 @@ impl<'de, T: DeltaOfDeltable> Deserialize<'de> for DeltaOfDeltaIter<'de, T> {
         D: serde::Deserializer<'de>,
     {
         let bytes: &'de [u8] = Deserialize::deserialize(deserializer)?;
+        if bytes.len() < 2 {
+            return Err(D::Error::custom(
+                "DeltaOfDelta bytes should be at least 2 bytes",
+            ));
+        }
         Ok(DeltaOfDeltaIter::new(bytes))
     }
 }

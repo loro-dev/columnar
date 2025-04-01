@@ -6,6 +6,8 @@ It allows the contents that need to be serialized and deserialized to be encoded
 
 For more detailed introduction, please refer to this `Notion` link: [Serde-Columnar](https://www.notion.so/loro-dev/Serde-Columnar-Ergonomic-columnar-storage-encoding-crate-7b0c86d6f8d24e4da45a1e2ebd86741c?pvs=4).
 
+![Image](https://github.com/user-attachments/assets/48475c7d-61c8-4903-892d-70d702137dba)
+
 ## 🚧 This crate is in progress and not stable, should not be used in production environments
 
 ## Features 🚀
@@ -30,7 +32,7 @@ Or edit your `Cargo.toml` and add `serde_columnar` as dependency:
 
 ```toml
 [dependencies]
-serde_columnar = "0.3.10"
+serde_columnar = "0.3.11"
 ```
 
 ### Container Attribute
