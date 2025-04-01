@@ -2,6 +2,10 @@
 members = ["columnar", "columnar_derive", "fuzz"]
 resolver = "2"
 
+[workspace.package]
+homepage = "https://github.com/loro-dev/columnar"
+repository = "https://github.com/loro-dev/columnar"
+
 # Added profile settings from fuzz/Cargo.toml
 [profile.release]
 debug = 1
