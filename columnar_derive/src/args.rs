@@ -29,7 +29,7 @@ pub struct DeriveArgs {
 pub struct FieldArgs {
     /// the name of field
     pub ident: Option<syn::Ident>,
-    pub vis: syn::Visibility,
+    // pub vis: syn::Visibility,
     /// the type of field
     pub ty: Type,
     // custom attributes
@@ -97,10 +97,10 @@ pub enum AsType {
 }
 
 pub trait Args {
-    fn ident(&self) -> Option<syn::Ident>;
+    // fn ident(&self) -> Option<syn::Ident>;
     fn ty(&self) -> Option<syn::Type>;
-    fn index(&self) -> Option<usize>;
-    fn optional(&self) -> bool;
+    // fn index(&self) -> Option<usize>;
+    // fn optional(&self) -> bool;
     fn strategy(&self) -> Strategy;
     fn can_copy(&self) -> bool {
         match self.strategy() {
@@ -145,18 +145,10 @@ pub trait Args {
 }
 
 impl Args for FieldArgs {
-    fn ident(&self) -> Option<syn::Ident> {
-        self.ident.clone()
-    }
     fn ty(&self) -> Option<syn::Type> {
         Some(self.ty.clone())
     }
-    fn index(&self) -> Option<usize> {
-        self.index
-    }
-    fn optional(&self) -> bool {
-        self.optional
-    }
+
     fn strategy(&self) -> Strategy {
         Strategy::from_str(self.strategy.clone())
     }
@@ -261,19 +253,10 @@ impl Args for FieldArgs {
 }
 
 impl Args for VariantArgs {
-    fn ident(&self) -> Option<syn::Ident> {
-        None
-    }
     fn ty(&self) -> Option<syn::Type> {
         None
     }
 
-    fn index(&self) -> Option<usize> {
-        None
-    }
-    fn optional(&self) -> bool {
-        false
-    }
     fn strategy(&self) -> Strategy {
         Strategy::None
     }

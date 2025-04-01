@@ -723,7 +723,7 @@ mod test {
 
     use rand::Rng;
 
-    use crate::column::delta_rle;
+    
 
     use super::{DeltaOfDeltaEncoder, DeltaRleEncoder};
 
