@@ -32,7 +32,6 @@ pub struct FieldArgs {
     pub vis: syn::Visibility,
     /// the type of field
     pub ty: Type,
-    pub attrs: Vec<syn::Attribute>,
     // custom attributes
     /// The index of the field in the struct, starts from 0 default.
     pub index: Option<usize>,
@@ -57,7 +56,7 @@ pub struct VariantArgs {
     // pub ident: syn::Ident,
     // pub vis: syn::Visibility,
     // pub ty: syn::Type,
-    pub attrs: Vec<syn::Attribute>,
+    // pub attrs: Vec<syn::Attribute>,
     /// the type of the column format, vec or map.
     #[darling(rename = "class")]
     pub type_: Option<String>,
@@ -100,7 +99,6 @@ pub enum AsType {
 pub trait Args {
     fn ident(&self) -> Option<syn::Ident>;
     fn ty(&self) -> Option<syn::Type>;
-    fn attrs(&self) -> &[syn::Attribute];
     fn index(&self) -> Option<usize>;
     fn optional(&self) -> bool;
     fn strategy(&self) -> Strategy;
@@ -152,9 +150,6 @@ impl Args for FieldArgs {
     }
     fn ty(&self) -> Option<syn::Type> {
         Some(self.ty.clone())
-    }
-    fn attrs(&self) -> &[syn::Attribute] {
-        &self.attrs
     }
     fn index(&self) -> Option<usize> {
         self.index
@@ -272,9 +267,7 @@ impl Args for VariantArgs {
     fn ty(&self) -> Option<syn::Type> {
         None
     }
-    fn attrs(&self) -> &[syn::Attribute] {
-        &self.attrs
-    }
+
     fn index(&self) -> Option<usize> {
         None
     }
