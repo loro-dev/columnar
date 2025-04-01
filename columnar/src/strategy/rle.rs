@@ -720,12 +720,8 @@ impl<'de, T: DeltaOfDeltable> Iterator for DeltaOfDeltaDecoder<'de, T> {
 
 #[cfg(test)]
 mod test {
-
-    use rand::Rng;
-
-    
-
     use super::{DeltaOfDeltaEncoder, DeltaRleEncoder};
+    use rand::Rng;
 
     #[test]
     fn test_rle() {
@@ -804,8 +800,8 @@ mod test {
             let mut delta_of_delta = DeltaOfDeltaEncoder::new();
             while n < 5000 {
                 if rng.gen_bool(0.93) {
-                    delta_rle.append(i);
-                    delta_of_delta.append(i);
+                    delta_rle.append(i).unwrap();
+                    delta_of_delta.append(i).unwrap();
                     n += 1;
                 }
                 i += 1;

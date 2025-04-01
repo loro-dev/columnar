@@ -50,21 +50,6 @@ pub struct FieldArgs {
     pub iter: Option<Type>,
 }
 
-#[derive(FromVariant, Debug)]
-#[darling(attributes(columnar))]
-pub struct VariantArgs {
-    // pub ident: syn::Ident,
-    // pub vis: syn::Visibility,
-    // pub ty: syn::Type,
-    // pub attrs: Vec<syn::Attribute>,
-    /// the type of the column format, vec or map.
-    #[darling(rename = "class")]
-    pub type_: Option<String>,
-    /// If skip, this field will be ignored.
-    #[darling(default)]
-    pub skip: bool,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub enum Strategy {
     Rle,
@@ -249,39 +234,6 @@ impl Args for FieldArgs {
 
     fn has_borrow_lifetime(&self) -> bool {
         self.borrow.is_some()
-    }
-}
-
-impl Args for VariantArgs {
-    fn ty(&self) -> Option<syn::Type> {
-        None
-    }
-
-    fn strategy(&self) -> Strategy {
-        Strategy::None
-    }
-    fn class(&self) -> Option<AsType> {
-        match self.type_.as_deref() {
-            Some("vec") => Some(AsType::Vec),
-            Some("map") => Some(AsType::Map),
-            Some(_) => Some(AsType::Other),
-            None => None,
-        }
-    }
-    fn borrow_lifetimes(&self) -> syn::Result<Option<BTreeSet<Lifetime>>> {
-        unimplemented!("Variant have not implemented borrow")
-    }
-
-    fn self_lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
-        unimplemented!("Variant have not implemented self_lifetime")
-    }
-
-    fn has_borrow_lifetime(&self) -> bool {
-        false
-    }
-
-    fn lifetime(&self) -> syn::Result<BTreeSet<Lifetime>> {
-        unimplemented!("Variant have not implemented borrow")
     }
 }
 

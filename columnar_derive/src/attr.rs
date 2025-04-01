@@ -1,10 +1,9 @@
 use proc_macro2::Ident;
-use syn::{Generics, ImplGenerics, TypeGenerics, Visibility, WhereClause};
+use syn::{Generics, Visibility};
 
 use crate::{
     args::{DeriveArgs, FieldArgs},
     ast::struct_from_ast,
-    de::{borrowed_lifetimes, BorrowedLifetimes},
 };
 
 /// ```rust
@@ -19,7 +18,6 @@ use crate::{
 ///     bytes: &'a [u8]
 /// }
 /// ```
-
 #[allow(dead_code)]
 pub enum Data {
     Enum,
@@ -55,10 +53,7 @@ pub struct Context<'a> {
     pub data: Data,
     /// Any generics on the struct or enum.
     pub generics: &'a Generics,
-    /// Original input.
-    pub original: &'a syn::DeriveInput,
     pub derive_args: DeriveArgs,
-    pub borrowed: BorrowedLifetimes,
 }
 
 impl<'a> Context<'a> {
@@ -81,26 +76,17 @@ impl<'a> Context<'a> {
                 ))
             }
         };
-        let borrowed = borrowed_lifetimes(data.fields())?;
 
         Ok(Context {
             ident: input.ident.clone(),
             vis: input.vis.clone(),
             data,
             generics: &input.generics,
-            original: input,
             derive_args,
-            borrowed,
         })
     }
 
     pub fn fields(&self) -> &[FieldArgs] {
         self.data.fields()
     }
-}
-
-pub trait ColumnarSerAttributes {
-    fn impl_generics(&self) -> ImplGenerics;
-    fn ty_generics(&self) -> TypeGenerics;
-    fn where_clause(&self) -> WhereClause;
 }
