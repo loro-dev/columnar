@@ -1,6 +1,6 @@
 [package]
 name = "serde_columnar_derive"
-version = "0.3.5"
+version = "0.3.6"
 edition = "2021"
 authors = ["leonzhao <leeeon233@gmail.com>", "zxch3n <remch183@outlook.com>"]
 license = "MIT OR Apache-2.0"
@@ -16,7 +16,7 @@ doctest = false
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
-darling = "0.20.10"
+darling = "^0.20.10"
 
 [features]
 analyze = []
