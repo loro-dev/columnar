@@ -528,7 +528,7 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
         let (head_num, bytes) = postcard::take_from_bytes(bytes)?;
         if bytes.is_empty() {
             return Err(ColumnarError::RleDecodeError(
-                "invalid DeltaOfDelta input".to_string(),
+                "Invalid DeltaOfDelta input".to_string(),
             ));
         }
         let last_used_bit = bytes[0];
@@ -543,20 +543,6 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
             last_used_bit,
             _t: PhantomData,
         })
-
-        // let (head_num, bytes) = postcard::take_from_bytes(bytes).unwrap();
-        // let last_used_bit = bytes[0];
-        // let bits = &bytes[1..];
-        // Self {
-        //     bits: &bytes,
-        //     head_num: None,
-        //     prev_value: 0,
-        //     prev_delta: 0,
-        //     index: 0,
-        //     current_bits_index: 0,
-        //     last_used_bit: 0,
-        //     _t: PhantomData,
-        // }
     }
 
     pub fn decode(&mut self) -> Result<Vec<T>, ColumnarError> {
@@ -591,7 +577,11 @@ impl<'de, T: DeltaOfDeltable> DeltaOfDeltaDecoder<'de, T> {
                     self.prev_value += self.prev_delta;
                 }
                 None => return Ok(None),
-                _ => panic!("delta of delta read flag should be 0 or 1"),
+                _ => {
+                    return Err(ColumnarError::RleDecodeError(
+                        "delta of delta read flag should be 0 or 1".to_string(),
+                    ))
+                }
             };
         }
         // println!("prev_value {}", self.prev_value);

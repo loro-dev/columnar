@@ -1,0 +1,13 @@
+---
+source: columnar/tests/integration/attribute.rs
+assertion_line: 618
+expression: bytes
+---
+- 1
+- 1
+- 5
+- 1
+- 2
+- 2
+- 160
+- 0

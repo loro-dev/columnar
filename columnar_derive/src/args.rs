@@ -376,8 +376,6 @@ fn collect_lifetimes(ty: &syn::Type, out: &mut BTreeSet<syn::Lifetime>) {
         | syn::Type::ImplTrait(_)
         | syn::Type::Infer(_)
         | syn::Type::Verbatim(_) => {}
-
-        #[cfg_attr(all(test, exhaustive), deny(non_exhaustive_omitted_patterns))]
         _ => {}
     }
 }
