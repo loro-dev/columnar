@@ -5,15 +5,12 @@ pub mod rle;
 pub mod serde_impl;
 
 use crate::{columnar_internal::ColumnarEncoder, ColumnarDecoder, ColumnarError};
-use crate::{
-    BoolRleColumn, DeltaOfDeltaColumn, DeltaRleColumn, DeltaRleable, RleColumn, Rleable, Strategy,
-};
+use crate::{BoolRleColumn, DeltaOfDeltaColumn, DeltaRleColumn, DeltaRleable, RleColumn, Rleable};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::DerefMut;
 
 pub trait ColumnTrait {
-    const STRATEGY: Strategy;
     fn attr(&self) -> ColumnAttr;
     fn encode(&self) -> Result<Vec<u8>, ColumnarError>;
     fn decode(bytes: &[u8]) -> Result<Self, ColumnarError>
@@ -100,8 +97,6 @@ impl<T> ColumnTrait for GenericColumn<T>
 where
     T: Serialize + for<'de> Deserialize<'de>,
 {
-    const STRATEGY: Strategy = Strategy::None;
-
     fn attr(&self) -> ColumnAttr {
         ColumnAttr::empty()
     }

@@ -355,9 +355,9 @@ impl<'a, P: WithGenericsBorrow> ToTokens for DeTypeGenerics<'a, P> {
 pub fn split_with_de_lifetime<P: WithGenericsBorrow>(
     params: &P,
 ) -> (
-    DeImplGenerics<P>,
-    DeTypeGenerics<P>,
-    syn::TypeGenerics,
+    DeImplGenerics<'_, P>,
+    DeTypeGenerics<'_, P>,
+    syn::TypeGenerics<'_>,
     Option<&syn::WhereClause>,
 ) {
     let de_impl_generics = DeImplGenerics(params);

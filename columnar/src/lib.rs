@@ -93,7 +93,7 @@ use serde::{Deserialize, Serialize};
 mod strategy;
 pub use strategy::{
     AnyRleDecoder, AnyRleEncoder, BoolRleDecoder, BoolRleEncoder, DeltaOfDeltaDecoder,
-    DeltaOfDeltaEncoder, DeltaRleDecoder, DeltaRleEncoder, Strategy,
+    DeltaOfDeltaEncoder, DeltaRleDecoder, DeltaRleEncoder,
 };
 mod wrap;
 pub use wrap::{ColumnarMap, ColumnarVec};
