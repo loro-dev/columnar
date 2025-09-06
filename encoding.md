@@ -1,14 +1,12 @@
-# Serde‑Columnar Binary Encoding
+# Serde‑Columnar Binary Encoding (Self‑Contained)
 
-This document describes the on‑wire format produced by the `serde_columnar`
-crate. It aims to be easy to read and practical to implement against, inspired
-by the style of the Automerge binary format spec.
+This document specifies the exact byte format produced by the `serde_columnar`
+crate. It is self‑contained: you can implement a compatible encoder/decoder in
+any language without depending on Rust or Postcard.
 
-The format is designed for compactness and forward/backward compatibility, with
-column‑oriented layout and specialized codecs for common patterns. It is built
-on top of the [postcard] serializer for primitive and sequence encodings.
-
-[postcard]: https://docs.rs/postcard/
+The format is compact and schema‑directed. A top‑level value (a “table”) is a
+sequence of fields. Certain fields may contain “containers” whose elements are
+stored column‑wise using dedicated codecs.
 
 
 ## Scope and Stability
@@ -19,34 +17,42 @@ on top of the [postcard] serializer for primitive and sequence encodings.
   change. The compatibility model (optional fields with stable integer indexes)
   is intended to remain.
 
+## Terminology and Conventions
 
-## High‑Level Model
+- “Octet” means an 8‑bit byte.
+- All multi‑byte integer encodings within this spec are little‑endian
+  base‑128 varints (LEB128) unless explicitly stated otherwise.
+- “Sequence” means a varint length `L` followed by exactly `L` items, each
+  encoded per its type.
+- “Byte string” means a varint length `N` followed by exactly `N` octets.
+- “Pair (A, B)” means the bytes of `A` immediately followed by the bytes of
+  `B` (no extra tag).
+- “Table” is the top‑level struct annotated with `#[columnar(ser, de)]`.
+- “Row” is a struct annotated with `#[columnar(vec)]` and/or
+  `#[columnar(map)]`. Rows only appear inside containers.
 
-At a high level, a serialized value is a single [postcard] payload. Within that
-payload:
 
-- A “table” (a struct annotated with `#[columnar(ser, de)]`) is encoded as a
-  postcard sequence containing each field in declaration order. Fields marked as
-  containers (`class="vec"` or `class="map"`) are themselves nested postcard
-  sequences in a columnar layout (described below).
-- A “row” (a struct annotated with `#[columnar(vec)]` and/or `#[columnar(map)]`)
-  is never serialized directly; instead, rows are only encoded as part of a
-  container and become one column per field.
-- No field names or strategy identifiers are stored on wire. The schema (Rust
-  type with its `#[columnar(...)]` attributes) determines how to interpret each
-  element.
+## Primitive Encodings
 
-Postcard provides the basic representation for integers, bytes, sequences, and
-tuples. Specifically:
+- Unsigned integer `uN`: LEB128 varint, 7 payload bits per octet. The MSB of
+  each octet is the continuation bit: 1 means more octets follow; 0 means last.
+  Examples: `0 → 00`, `1 → 01`, `127 → 7F`, `128 → 80 01`.
+- Signed integer `iN`: ZigZag, then LEB128. ZigZag maps `…,-2,-1,0,1,2,…` to
+  `…,3,1,0,2,4,…` via `u = (x << 1) ^ (x >> (N-1))`.
+  Examples: `0 → 00`, `-1 → 01`, `1 → 02`, `-2 → 03`, `2 → 04` (all as 1‑octet varints).
+- Boolean: single octet `00` (false) or `01` (true).
+- Byte string (`bytes`/`Vec<u8>`): `len: varint` followed by `len` octets.
+- UTF‑8 string: `len: varint` followed by `len` UTF‑8 octets.
+- Sequence (`Vec<T>`): `len: varint` then `len` elements, each encoded as `T`.
+- Option<T>: one varint tag, then optional payload. `0 = None`, `1 = Some`,
+  and when tag is `1`, the bytes of `T` follow immediately.
 
-- Integers are varint‑encoded; signed integers use ZigZag.
-- A “bytes” value is encoded as a length (varint) followed by that many raw
-  octets.
-- A sequence is encoded as its length (varint) followed by each element in
-  order.
+Notes:
 
-Serde‑columnar uses postcard’s “bytes” to embed codec output, and postcard’s
-sequences to arrange columns and optional field mappings.
+- When an encoded integer does not fit the consumer’s target type, the decoder
+  must raise an error.
+- This format does not embed type or schema tags; decoders must know the
+  expected types from the schema the data was produced with.
 
 
 ## Containers and Layout
@@ -57,102 +63,95 @@ Two container kinds are supported: list‑like and map‑like.
 
 Given a struct `Row` annotated with `#[columnar(vec)]` and a field `data:
 Vec<Row>` in a table struct annotated with `#[columnar(ser, de)]`, the value of
-`data` is encoded as a sequence of columns, one per field of `Row`:
+`data` is a sequence organized as follows:
 
-```
 data := SEQ(
-  COL_0_bytes,
-  COL_1_bytes,
-  ...,
-  COL_{F-1}_bytes,
-  (opt_index, opt_COL_bytes)*        // 0 or more optional fields
+  COL_0, COL_1, ..., COL_{F-1},      // F non‑optional fields of Row
+  (opt_index, opt_COL_bytes)*         // 0+ optional fields by mapping
 )
-```
 
-- `F` is the count of non‑optional, non‑skipped fields in `Row`.
-- Each `COL_i_bytes` is a postcard “bytes” element produced by the selected
-  codec for that column (see Codecs).
-- Optional row fields are not placed positionally. Instead, each present
-  optional field is appended as a pair `(index: usize, bytes: Vec<u8>)`, where
-  `index` is the stable integer specified in the schema
-  `#[columnar(optional, index = N)]` and `bytes` is the codec output for that
-  optional column.
+- `F` is the number of non‑optional, non‑skipped fields in `Row`.
+- Each `COL_i` is a byte string: the codec output for that column, encoded as a
+  byte string (length varint + bytes). See “Columns and Codecs”.
+- Optional fields of `Row` are not stored positionally. For each present
+  optional field, append a pair `(index, bytes)`:
+  - `index`: unsigned varint (the stable field index from
+    `#[columnar(optional, index = N)]`).
+  - `bytes`: byte string containing the codec output for that optional column.
 
 Decoding:
 
-1. Read the `F` non‑optional columns in order.
-2. Read zero or more mapping entries `(index, bytes)` until the sequence ends.
-3. For each optional field of `Row`:
-   - If present in the mapping: decode that column from its `bytes`.
-   - Otherwise: synthesize a column of length `L` (the max length among decoded
-     columns) filled with `Default::default()`.
-4. Reconstruct rows by zipping the per‑field columns element‑wise.
+1. Read the `F` non‑optional column byte strings in order and decode each.
+2. Read zero or more `(index, bytes)` pairs until the sequence ends, and decode
+   any optional columns present.
+3. For every optional field absent from the mapping, synthesize a column of
+   length `L` (the maximum length among decoded columns) filled with the type’s
+   default value.
+4. Reconstruct rows by zipping columns element‑wise.
 
 
 ### Map‑like containers (`class = "map"`)
 
 Given a struct `Row` annotated with `#[columnar(map)]` and a field
-`data: Map<K, Row>` in a table struct, the value of `data` is encoded as:
+`data: Map<K, Row>` in a table struct, the value of `data` is:
 
-```
 data := SEQ(
-  KEYS: Vec<K>,                       // postcard Vec<K>
-  COL_0_bytes, COL_1_bytes, ..., COL_{F-1}_bytes,
-  (opt_index, opt_COL_bytes)*
+  KEYS,                                // Vec<K> as a sequence
+  COL_0, COL_1, ..., COL_{F-1},        // F non‑optional fields of Row
+  (opt_index, opt_COL_bytes)*           // 0+ optional fields by mapping
 )
-```
 
-The columns correspond to the value type `Row` in the same way as the vec case.
-Keys are serialized once up front. During decoding, `len(KEYS)` determines the
-expected number of elements per column.
+- `KEYS` is a `Vec<K>` encoded as a sequence (length varint + each `K`).
+- Column handling matches the vec case. `len(KEYS)` determines the expected
+  number of elements per column.
 
-Reconstruction zips the keys with the reconstructed rows to produce the map.
+Reconstruction zips `KEYS` with the reconstructed rows to build the map.
 
 
 ### Tables (top‑level structs)
 
-A table struct annotated with `#[columnar(ser, de)]` is encoded as a postcard
-sequence of its fields in declaration order. For each field:
+A table struct annotated with `#[columnar(ser, de)]` is a sequence of its fields
+in declaration order. For each field:
 
-- If `class = "vec"` or `class = "map"`: the field is encoded using the
-  container layouts above as a nested sequence value.
-- Otherwise: the field is encoded with postcard normally.
+- If `class = "vec"` or `class = "map"`: encode using the container layouts
+  above as a nested sequence value.
+- Otherwise: encode the value directly using the primitive rules in this spec.
 
-Optional table fields are appended after all non‑optional fields as mapping
-pairs `(index: usize, bytes: &[u8])`, mirroring the container behavior. Missing
-optionals decode to `Default::default()`.
+Optional table fields are not stored positionally. After all non‑optional
+fields, append `(index, bytes)` pairs where `index` is the stable field index
+and `bytes` is a byte string containing the field encoded per this spec.
+Missing optionals decode to the type’s default value.
 
 
 ## Columns and Codecs
 
-Each field of a row becomes a column. The schema controls which codec is used by
-annotating the field with `#[columnar(strategy = "...")]`. If no strategy is
-specified, a generic codec is used.
-
-On wire, every column is carried as a postcard “bytes” element. No strategy tag
-is stored; the schema determines how to interpret the bytes.
+Each field of a row becomes an independent column. The schema selects the codec
+with `#[columnar(strategy = "...")]`. If unspecified, the “Generic” codec is
+used. On wire, the result of a codec is carried as a byte string (length varint
+then raw bytes). No strategy tag is stored; the schema determines how to decode.
 
 
 ### Generic (no strategy)
 
-Encodes the raw vector of field values using postcard: `Vec<T>` → `bytes`. This
-does not compress and is the fallback for complex types and nested containers
-(e.g., a `Vec<Row>` or `Map<K, Row>` nested inside a row).
+Encodes the raw vector of field values as a sequence: `Vec<T>` → `len: varint`
+then `len` elements of `T`, each encoded using the primitive rules in this
+spec. This is the fallback for complex types and nested containers.
 
 
 ### RLE (`strategy = "Rle"`)
 
-General run‑length encoding for any `T` that implements Serde, `Clone`, and
-`PartialEq`.
+General run‑length encoding for any element type `T`.
 
-Column bytes are a concatenation of runs encoded as postcard values:
+Column bytes are a concatenation of runs — there is no outer length header. Each
+run starts with a ZigZag+varint `count: isize`:
 
-- Repeated run: `(len: isize > 0)` followed by a single `value: T`.
-- Literal run: `(len: isize < 0)` followed by `-len` values of type `T`.
+- Repeated run: `count > 0`. Next are the bytes of a single `value: T`.
+- Literal run: `count < 0`. Next are the bytes of exactly `-count` values of
+  type `T`, back‑to‑back.
 
-Decoding appends `len` copies of `value` for repeated runs and replays the
-exact sequence for literal runs. A safety limit of `MAX_RLE_COUNT = 1_000_000_000`
-is enforced to reject obviously invalid inputs.
+`count = 0` is invalid. Decoding repeats the single value for repeated runs and
+copies the literal sequence for literal runs. A safety limit of
+`MAX_RLE_COUNT = 1_000_000_000` applies.
 
 
 ### Delta‑RLE (`strategy = "DeltaRle"`)
@@ -170,57 +169,53 @@ decoder and converts back to the target integer type, erroring on overflow.
 
 ### Bool‑RLE (`strategy = "BoolRle"`)
 
-Specialized for booleans. The column bytes are a postcard sequence of `usize`
-counts. Decoding proceeds as follows:
+Specialized for booleans. The column bytes are a concatenation of unsigned
+varint counts — there is no outer length header. Decoding:
 
-1. Initialize `value = true` and `count = 0`.
-2. For each `n` read:
-   - Set `value = !value` (toggle).
-   - Emit `n` copies of `value`.
+1. Initialize `last = true`, `count = 0`.
+2. Repeatedly read a varint `n`:
+   - Toggle `last = !last`.
+   - Emit `n` copies of `last`.
+3. Stop at end of input. A safety limit guards against pathological inputs.
 
-The encoder chooses counts so that the first toggle yields the first run’s
-boolean. For example, the sequence `true, true, false, false, false` encodes as
-counts `[0, 2, 3]`.
+The encoder emits a leading `0` count when the first run is `true`. Example:
 
-Like RLE, a safety limit guards against pathological inputs.
+- Values: `true, true, false, false, false`
+- Counts: `[0, 2, 3]`
+- Column bytes (hex): `00 02 03`
 
 
 ### Delta‑of‑Delta (`strategy = "DeltaOfDelta"`)
 
-Compact bit‑packed encoding for timestamp‑like series with approximately
-constant step. The first element is stored verbatim; subsequent steps encode the
-second difference (`Δ² = (v_i - v_{i-1}) - (v_{i-1} - v_{i-2})`).
+Compact bit‑packed encoding for timestamp‑like `i64` series with approximately
+constant step. The first element is stored verbatim; subsequent elements encode
+the second difference `Δ² = (v_i - v_{i-1}) - (v_{i-1} - v_{i-2})`.
 
-Column bytes have the following structure:
+Column bytes:
 
-```
-bytes := postcard(Option<i64>)   // head value (Some(first), or None if empty)
-         octet                    // bits_used_in_last_byte (1..=8, 8 means a full byte)
-         bitstream                // big‑endian packed Δ² codes
-```
+- Head: `Option<i64>` (see “Primitive Encodings”). `Some(first)` when non‑empty,
+  `None` when empty.
+- Trailer: one octet `U` giving the number of valid bits in the final data
+  octet, where `U ∈ {0,1,…,8}`. `U = 0` means the bitstream is empty; `U = 8`
+  means the last data octet is fully used.
+- Bitstream: big‑endian bit‑packed Δ² codes, appended MSB‑first across octets.
 
-The bitstream encodes each Δ² using a prefix class and payload:
+Δ² code classes (prefix then payload):
 
-- `0`                             → Δ² = 0 (1 bit total)
-- `10`  + 7 bits unsigned        → Δ² ∈ [−63, 64]
-- `110` + 9 bits unsigned        → Δ² ∈ [−255, 256]
-- `1110` + 12 bits unsigned      → Δ² ∈ [−2047, 2048]
-- `11110` + 21 bits unsigned     → Δ² ∈ [−(2²⁰−1), 2²⁰]
-- `11111` + 64 bits unsigned     → Δ² as 64‑bit two’s‑complement
+- `0`                              → Δ² = 0 (1 bit total)
+- `10`  + 7 bits unsigned         → Δ² ∈ [−63, 64]      (store `Δ² + 63`)
+- `110` + 9 bits unsigned         → Δ² ∈ [−255, 256]    (store `Δ² + 255`)
+- `1110` + 12 bits unsigned       → Δ² ∈ [−2047, 2048]  (store `Δ² + 2047`)
+- `11110` + 21 bits unsigned      → Δ² ∈ [−(2²⁰−1), 2²⁰] (store `Δ² + (2²⁰−1)`)
+- `11111` + 64 bits two’s‑complement → Δ² as signed 64‑bit
 
-In each non‑zero class, the stored payload is `(Δ² + bias)` where the bias is
-63, 255, 2047, or `(2²⁰ − 1)` respectively. Bits are appended MSB‑first,
-spanning octet boundaries as needed. The single‑octet `bits_used_in_last_byte`
-acts as a tail marker: when the last code ends exactly on a byte boundary, it
-is set to `8`.
+Decoding:
 
-Decoding reconstructs values by:
-
-1. Reading the head `Option<i64>` to seed `prev` and `prev_delta`.
-2. Repeating: read a code; if class `0`, set `prev += prev_delta`; else read the
-   payload, unbias to get Δ², update `prev_delta += Δ²`, then `prev +=
-   prev_delta`.
-3. Stop when there are no more bits in the bitstream.
+1. Read head `Option<i64>`. If `None`, the column is empty. If `Some(x)`, set
+   `prev = x` and `prev_delta = 0`, and yield `x` as the first value.
+2. While bits remain: read a class per the prefixes above. If class `0`, set
+   `prev += prev_delta`. Otherwise, read the payload, unbias to get `Δ²`, then
+   `prev_delta += Δ²` and `prev += prev_delta`. Yield `prev` each time.
 
 
 ## Optional Fields and Compatibility
@@ -238,8 +233,8 @@ Rules:
 
 On wire, optional fields are omitted from the positional portion and instead
 encoded as `(index, bytes)` pairs after all non‑optional elements. Decoders that
-do not know a field’s `index` will ignore it. Decoders that expect a field that
-was not sent will use `Default::default()` for that field.
+do not know a field’s `index` ignore it. Decoders that expect a field that was
+not sent use `Default::default()` for that field.
 
 This makes adding, removing, or reordering optional fields forward‑ and
 backward‑compatible, as long as each field’s binary representation remains
@@ -251,7 +246,7 @@ not).
 
 Fields annotated with `#[columnar(borrow)]` are deserialized by borrowing from
 the input buffer where possible (e.g., `Cow<'de, str>` and `Cow<'de, [u8]>`).
-This does not change the on‑wire format; it affects only how bytes are mapped to
+This does not change the on‑wire format; it only affects how bytes are mapped to
 Rust values during deserialization.
 
 
@@ -281,6 +276,28 @@ The on‑wire layout is identical to the non‑iterable case.
 - Integer conversions error if a reconstructed value cannot be represented in
   the target type.
 - `DeltaOfDelta` rejects inputs with insufficient header/trailer bytes.
+
+
+## Worked Examples
+
+These examples use the primitive rules above, so they can be reproduced without
+Rust or Postcard.
+
+- Bool‑RLE column for values `true, true, false, false, false`:
+  - Counts: `[0, 2, 3]`
+  - Column bytes: `00 02 03`
+
+- Encoding a simple vec‑like container with a single boolean column using
+  Bool‑RLE. Let `rows: Vec<Row>` where `Row { #[columnar(strategy = "BoolRle")] b: bool }`
+  and values are the five booleans above. The container is a sequence with one
+  element (one column). That element is a byte string carrying the Bool‑RLE
+  bytes. Therefore the container bytes are:
+  - Sequence length: `01`
+  - Column byte string length: `03`
+  - Column payload: `00 02 03`
+  - Full bytes (hex): `01 03 00 02 03`
+
+Implementations can use this as a cross‑check.
 
 
 ## Worked Example (Informal)
@@ -336,10 +353,9 @@ Option<String>` will read or default it independently.
 
 ## Summary
 
-- Tables serialize as postcard sequences of fields; container fields embed a
-  columnar layout.
-- Row fields become independent columns; codecs emit postcard “bytes”.
-- Optional fields are appended as `(index, bytes)` pairs, enabling
-  backward‑/forward‑compatible evolution.
+- Tables are sequences of fields; container fields embed a columnar layout.
+- Row fields become independent columns; codecs emit byte strings.
+- Optional fields are appended as `(index, bytes)` pairs for
+  backward/forward‑compatible evolution.
 - Iteration is a decoding optimization; the wire format remains the same.
 
