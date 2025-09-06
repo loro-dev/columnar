@@ -1,6 +1,6 @@
 use crate::{
     strategy::{DeltaRleDecoder, DeltaRleEncoder},
-    ColumnAttr, ColumnarError, Strategy,
+    ColumnAttr, ColumnarError,
 };
 
 use super::{rle::Rleable, ColumnTrait};
@@ -26,8 +26,6 @@ impl<T> ColumnTrait for DeltaRleColumn<T>
 where
     T: DeltaRleable,
 {
-    const STRATEGY: Strategy = Strategy::DeltaRle;
-
     fn attr(&self) -> ColumnAttr {
         self.attr
     }

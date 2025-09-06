@@ -1,6 +1,6 @@
 use crate::{
     strategy::{DeltaOfDeltaDecoder, DeltaOfDeltaEncoder},
-    ColumnAttr, ColumnarError, Strategy,
+    ColumnAttr, ColumnarError,
 };
 
 use super::ColumnTrait;
@@ -22,8 +22,6 @@ impl<T> DeltaOfDeltaColumn<T> {
 }
 
 impl<T: DeltaOfDeltable> ColumnTrait for DeltaOfDeltaColumn<T> {
-    const STRATEGY: Strategy = Strategy::DeltaRle;
-
     fn attr(&self) -> ColumnAttr {
         self.attr
     }

@@ -1,6 +1,6 @@
 use crate::{
     strategy::{BoolRleDecoder, BoolRleEncoder},
-    ColumnAttr, ColumnarError, Strategy,
+    ColumnAttr, ColumnarError,
 };
 
 use super::ColumnTrait;
@@ -19,8 +19,6 @@ impl BoolRleColumn {
 }
 
 impl ColumnTrait for BoolRleColumn {
-    const STRATEGY: Strategy = Strategy::BoolRle;
-
     fn attr(&self) -> ColumnAttr {
         self.attr
     }

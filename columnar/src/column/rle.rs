@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     strategy::{AnyRleDecoder, AnyRleEncoder},
-    ColumnAttr, ColumnarError, Strategy,
+    ColumnAttr, ColumnarError,
 };
 
 use super::ColumnTrait;
@@ -27,8 +27,6 @@ impl<T> ColumnTrait for RleColumn<T>
 where
     T: Rleable,
 {
-    const STRATEGY: Strategy = Strategy::Rle;
-
     fn len(&self) -> usize {
         self.data.len()
     }
