@@ -770,7 +770,7 @@ dependencies = [
 
 [[package]]
 name = "serde_columnar"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "bincode",
  "criterion",
