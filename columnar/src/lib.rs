@@ -100,6 +100,7 @@ pub use wrap::{ColumnarMap, ColumnarVec};
 
 pub use postcard::Error as PostcardError;
 pub use serde_columnar_derive::*;
+pub mod __serde_utils;
 
 #[cfg(feature = "bench")]
 extern crate lazy_static;

@@ -8,8 +8,6 @@ For more detailed introduction, please refer to this `Notion` link: [Serde-Colum
 
 ![Image](https://github.com/user-attachments/assets/48475c7d-61c8-4903-892d-70d702137dba)
 
-## 🚧 This crate is in progress and not stable, should not be used in production environments
-
 ## Features 🚀
 
 `serde_columnar` comes with several remarkable features:

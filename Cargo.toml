@@ -6,6 +6,9 @@ resolver = "2"
 homepage = "https://github.com/loro-dev/columnar"
 repository = "https://github.com/loro-dev/columnar"
 
+[workspace.dependencies]
+serde = { version = "^1" }
+
 # Added profile settings from fuzz/Cargo.toml
 [profile.release]
 debug = 1
