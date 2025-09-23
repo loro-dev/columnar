@@ -43,7 +43,7 @@ where
         where
             E: Error,
         {
-            match str::from_utf8(v) {
+            match std::str::from_utf8(v) {
                 Ok(s) => Ok(Cow::Owned(s.to_owned())),
                 Err(_) => Err(Error::invalid_value(Unexpected::Bytes(v), &self)),
             }
@@ -53,7 +53,7 @@ where
         where
             E: Error,
         {
-            match str::from_utf8(v) {
+            match std::str::from_utf8(v) {
                 Ok(s) => Ok(Cow::Borrowed(s)),
                 Err(_) => Err(Error::invalid_value(Unexpected::Bytes(v), &self)),
             }
