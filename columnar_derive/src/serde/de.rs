@@ -73,7 +73,7 @@ impl DeFieldAttrs {
             quote::quote!(
                 let #field_name = {
                     #wrapper
-                    ::serde::__private::Option::map(
+                    std::option::Option::map(
                         ::serde::de::SeqAccess::next_element::<#wrapper_ty>(&mut seq)?,
                         |__wrap| __wrap.value).ok_or_else(|| __A::Error::custom("DeserializeUnexpectedEnd"))?
                 };
@@ -118,9 +118,9 @@ impl DeFieldAttrs {
                 segments: Punctuated::new(),
             };
             let span = Span::call_site();
-            path.segments.push(Ident::new("serde", span).into());
-            path.segments.push(Ident::new("__private", span).into());
-            path.segments.push(Ident::new("de", span).into());
+            path.segments
+                .push(Ident::new("serde_columnar", span).into());
+            path.segments.push(Ident::new("__serde_utils", span).into());
             path.segments
                 .push(Ident::new("borrow_cow_str", span).into());
             let ans = syn::ExprPath {
@@ -135,9 +135,9 @@ impl DeFieldAttrs {
                 segments: Punctuated::new(),
             };
             let span = Span::call_site();
-            path.segments.push(Ident::new("serde", span).into());
-            path.segments.push(Ident::new("__private", span).into());
-            path.segments.push(Ident::new("de", span).into());
+            path.segments
+                .push(Ident::new("serde_columnar", span).into());
+            path.segments.push(Ident::new("__serde_utils", span).into());
             path.segments
                 .push(Ident::new("borrow_cow_bytes", span).into());
             let ans = syn::ExprPath {
@@ -381,19 +381,19 @@ fn wrap_deserialize_with(
         #[doc(hidden)]
         struct __DeserializeWith #de_impl_generics #where_clause {
             value: #value_ty,
-            phantom: ::serde::__private::PhantomData<#this_type #ty_generics>,
-            lifetime: ::serde::__private::PhantomData<&#delife ()>,
+            phantom: std::marker::PhantomData<#this_type #ty_generics>,
+            lifetime: std::marker::PhantomData<&#delife ()>,
         }
 
         impl #de_impl_generics serde::Deserialize<#delife> for __DeserializeWith #de_ty_generics #where_clause {
-            fn deserialize<__D>(__deserializer: __D) -> ::serde::__private::Result<Self, __D::Error>
+            fn deserialize<__D>(__deserializer: __D) ->  std::result::Result<Self, __D::Error>
             where
                 __D: serde::Deserializer<#delife>,
             {
-                ::serde::__private::Ok(__DeserializeWith {
+                std::result::Result::Ok(__DeserializeWith {
                     value: #deserialize_with(__deserializer)?,
-                    phantom: ::serde::__private::PhantomData,
-                    lifetime: ::serde::__private::PhantomData,
+                    phantom: std::marker::PhantomData,
+                    lifetime: std::marker::PhantomData,
                 })
             }
         }
