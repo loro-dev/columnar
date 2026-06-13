@@ -12,7 +12,7 @@ keywords = ["columnar", "column-oriented", "compression", "serde", "compatible"]
 [dependencies]
 serde = { workspace = true }
 serde_columnar_derive = { path = "../columnar_derive", version = "0.3.7" }
-postcard = { version = "^1.1.0", features = ["alloc"] }
+postcard = { version = "^1.1.0", default-features = false, features = ["alloc"] }
 thiserror = "1.0"
 lazy_static = { version = "1.4", optional = true }
 bincode = { version = "1.3.3", optional = true }
